@@ -18,19 +18,40 @@ function App() {
   const [player1Position, setPlayer1Position] = useState({ top: 160, left: 50 });
   const [player2Position, setPlayer2Position] = useState({ top: 160, left: 750 });
 
-  // ... game logic, controls, and styling ...
+  // Game settings (adjust as needed)
+  const courtWidth = 800;
+  const courtHeight = 400;
+  const netHeight = 243;
+  const ballRadius = 20;
+  const ballSpeed = 5;
+  const playerHeight = 80;
+  const playerWidth = 40;
+
+  const updateBallPosition = () => {
+    const newTop = ballPosition.top + ballSpeed * (Math.random() - 0.5);
+    const newLeft = ballPosition.left + ballSpeed * (Math.random() - 0.5);
+
+    // Ensure ball stays within court boundaries
+    const clampedTop = Math.min(Math.max(newTop, ballRadius), courtHeight - ballRadius);
+    const clampedLeft = Math.min(Math.max(newLeft, ballRadius), courtWidth - ballRadius);
+
+    setBallPosition({ top: clampedTop, left: clampedLeft });
+  };
+
+  useEffect(() => {
+    const intervalId = setInterval(updateBallPosition, 10);
+    return () => clearInterval(intervalId);
+  }, []);
 
   return (
     <GameContainer>
-      <Court>
-        <Net />
-        <Ball style={{ top: ballPosition.top, left: ballPosition.left }} />
-        <Player style={{ top: player1Position.top, left: player1Position.left }} />
-        <Player style={{ top: player2Position.top, left: player2Position.left }} />
-      </Court>
+      <Court />
+      <Net height={netHeight} width={2} left={courtWidth / 2} />
+      <Ball radius={ballRadius} />
+      <Player height={playerHeight} width={playerWidth} />
+      <Player height={playerHeight} width={playerWidth} />
     </GameContainer>
   );
 }
-
 
 export default App;
