@@ -1,17 +1,21 @@
-import React, { useState, useEffect } from 'react';
+import React from 'react';
 import styled from 'styled-components';
 
-const Net = ({ height, width, left }) => {
-  const netStyle = {
-    width: `${width}px`,
-    height: `${height}px`,
-    backgroundColor: 'black',
-    position: 'absolute',
-    left: `${left}px`,
-    top: '0',
-  };
+const NetContainer = styled.div`
+  position: absolute;
+  left: 50%;
+  top: 0;
+  transform: translateX(-50%);
+`;
 
-  return <div style={netStyle}></div>;
-};
+const Net = styled.div`
+  width: 2px;
+  height: 100%;
+  background-color: black;
+`;
 
-export default Net;
+export default () => (
+  <NetContainer>
+    <Net />
+  </NetContainer>
+);
