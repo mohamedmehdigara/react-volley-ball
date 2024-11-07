@@ -5,6 +5,7 @@ import Court from './components/Court';
 import Net from './components/Net';
 import Ball from './components/Ball';
 import Player from './components/Player';
+import Referee from './components/Referee';
 
 const GameContainer = styled.div`
   display: flex;
@@ -17,6 +18,8 @@ function App() {
   const [ballPosition, setBallPosition] = useState({ top: 200, left: 400 });
   const [player1Position, setPlayer1Position] = useState({ top: 160, left: 50 });
   const [player2Position, setPlayer2Position] = useState({ top: 160, left: 750 });
+  const [score, setScore] = useState({ team1Score: 0, team2Score: 0 });
+
 
   // Game settings (adjust as needed)
   const courtWidth = 800;
@@ -50,6 +53,8 @@ function App() {
       <Ball radius={ballRadius} />
       <Player height={playerHeight} width={playerWidth} />
       <Player height={playerHeight} width={playerWidth} />
+      <Referee ballPosition={ballPosition} player1Position={player1Position} player2Position={player2Position} setScore={setScore} />
+
     </GameContainer>
   );
 }
