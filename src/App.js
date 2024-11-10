@@ -6,6 +6,7 @@ import Net from './components/Net';
 import Ball from './components/Ball';
 import Player from './components/Player';
 import Referee from './components/Referee';
+import LineJudge from './components/LineJudge';
 
 const GameContainer = styled.div`
   display: flex;
@@ -54,7 +55,7 @@ function App() {
       <Player height={playerHeight} width={playerWidth} />
       <Player height={playerHeight} width={playerWidth} />
       <Referee ballPosition={ballPosition} player1Position={player1Position} player2Position={player2Position} setScore={setScore} />
-
+      <LineJudge ballPosition={ballPosition} courtWidth={courtWidth} courtHeight={courtHeight} />
     </GameContainer>
   );
 }
