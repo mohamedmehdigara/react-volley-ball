@@ -3,52 +3,54 @@ import styled from 'styled-components';
 
 
 
-function Ball({ initialPosition = { top: 200, left: 400 }, speed, direction = { x: 1, y: 1 }, radius = 10 }) {
+function Ball({ initialPosition = { top: 200, left: 400 }, initialSpeed = 5, initialDirection = { x: 1, y: 1 }, initialSpinX = 0, initialSpinY = 0, airResistance = 0.01 }) {
   const Ball = styled.div`
   width: 20px;
   height: 20px;
+  border-radius: 50%;
   background-color: red;
-  border-radius: 50%; /* Add rounded shape */
   position: absolute;
- 
+  top: ${(props) => props.top}px;
+  left: ${(props) => props.left}px;
 `;
+
   const [position, setPosition] = useState(initialPosition);
+  const [speed, setSpeed] = useState(initialSpeed);
+  const [direction, setDirection] = useState(initialDirection);
+  const [spinX, setSpinX] = useState(initialSpinX);
+  const [spinY, setSpinY] = useState(initialSpinY);
+
+  const courtWidth = 800; // Adjust to your court width
+  const courtHeight = 400; // Adjust to your court height
+  const ballRadius = 10;
 
   useEffect(() => {
     const intervalId = setInterval(() => {
-      // Update ball position based on speed and direction
-      const newTop = position.top + speed * direction.y;
-      const newLeft = position.left + speed * direction.x;
-  
-      // Check for ball collisions with court boundaries (add logic here)
-      const courtWidth = 800; // Replace with your actual court width
-      const courtHeight = 400; // Replace with your actual court height
-      const ballRadius = 10; // Adjust as needed
-  
-      // Prevent ball from going out of bounds
-      let adjustedTop = newTop;
-      let adjustedLeft = newLeft;
-  
-      if (adjustedTop - ballRadius < 0) {
-        adjustedTop = ballRadius; // Clamp top position at the court top
-      } else if (adjustedTop + ballRadius > courtHeight) {
-        adjustedTop = courtHeight - ballRadius; // Clamp top position at the court bottom
-      }
-  
-      if (adjustedLeft - ballRadius < 0) {
-        adjustedLeft = ballRadius; // Clamp left position at the court left
-      } else if (adjustedLeft + ballRadius > courtWidth) {
-        adjustedLeft = courtWidth - ballRadius; // Clamp left position at the court right
-      }
-  
-      // Update ball position with collision prevention
-      setPosition({ top: adjustedTop, left: adjustedLeft });
-    }, 10);
-  
-    return () => clearInterval(intervalId);
-  }, [position, speed, direction]);
+      const newTop = position.top + speed * direction.y + spinY;
+      const newLeft = position.left + speed * direction.x + spinX;
 
-  return <Ball top={position.top} left={position.left} radius={radius} />;
+      // Apply air resistance
+      setSpeed(Math.max(speed - airResistance, 0));
+
+      // Check for collisions with court boundaries
+      if (newTop - ballRadius <= 0 || newTop + ballRadius >= courtHeight) {
+        setDirection({ ...direction, y: -direction.y });
+        setSpinY(-spinY); // Reverse spin on y-axis
+      }
+      if (newLeft - ballRadius <= 0 || newLeft + ballRadius >= courtWidth) {
+        setDirection({ ...direction, x: -direction.x });
+        setSpinX(-spinX); // Reverse spin on x-axis
+      }
+
+      // Check for collisions with the net and players (implement later)
+
+      setPosition({ top: newTop, left: newLeft });
+    }, 10);
+
+    return () => clearInterval(intervalId);
+  }, [position, speed, direction, spinX, spinY, airResistance]);
+
+  return <Ball top={position.top} left={position.left} />;
 }
 
 export default Ball;
