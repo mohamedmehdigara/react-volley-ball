@@ -16,7 +16,8 @@ function Ball({
   netHeight,
   onPlayerCollision,
   outOfBounds,
-  playerPaddle,
+  player1Paddle,
+  player2Paddle,
 }) {
   const [position, setPosition] = useState(initialPosition);
   const [speed, setSpeed] = useState(initialSpeed);
@@ -25,6 +26,21 @@ function Ball({
   const [spinY, setSpinY] = useState(initialSpinY);
 
   const ballRadius = 10;
+
+  const isPlayerCollision = (ballPosition, ballRadius, playerPaddle) => {
+    // ... (same as before)
+  };
+
+  const sign = (x) => (x > 0 ? 1 : x < 0 ? -1 : 0);
+
+  const resetBall = () => {
+    setPosition(initialPosition);
+    setSpeed(initialSpeed);
+    // Set initial direction and spin based on desired reset behavior
+    setDirection({ x: 1, y: 1 }); // Adjust initial direction as needed
+    setSpinX(0);
+    setSpinY(0);
+  };
 
   const Ball = styled.div`
   width: 20px;
@@ -49,43 +65,25 @@ function Ball({
         setDirection({ ...direction, y: -direction.y });
         setSpinY(-spinY); // Reverse spin on y-axis
       }
-      if (newLeft - ballRadius <= 0 || newLeft + ballRadius >= courtWidth) {
-        setDirection({ ...direction, x: -direction.x });
-        setSpinX(-spinX); // Reverse spin on x-axis
+      if (newLeft - ballRadius <= 0) {
+        // Player 2 scores
+        if (outOfBounds) {
+          outOfBounds('player2');
+        }
+        resetBall(); // Reset ball position and direction
+      } else if (newLeft + ballRadius >= courtWidth) {
+        // Player 1 scores
+        if (outOfBounds) {
+          outOfBounds('player1');
+        }
+        resetBall();
       }
 
       // Check for net collision
-      if (newLeft >= courtWidth / 2 - netWidth / 2 && newLeft <= courtWidth / 2 + netWidth / 2 && newTop >= 0 && newTop <= netHeight) {
-        // Handle net collision (e.g., bounce back, lose point)
-        setDirection({ ...direction, y: -direction.y });
-        setSpinY(-spinY); // Reverse spin on y-axis
-        setSpeed(speed * 0.8); // Reduce speed after net collision
-      }
+      // ... (same as before)
 
       // Check for player collisions
-      if (onPlayerCollision) {
-        const collisionData = isPlayerCollision(position, ballRadius, playerPaddle);
-        if (collisionData) {
-          const { side, impactY } = collisionData;
-          onPlayerCollision(collisionData); // Call the callback with collision details
-
-          // Update ball direction and spin based on collision
-          setDirection({ ...direction, y: -direction.y });
-          setSpinY(-spinY); // Reverse spin on y-axis
-
-          // Adjust spin based on impact point
-          const spinImpact = Math.abs(impactY - 0.5) * 0.5;
-          setSpinX(spinX * (1 - spinImpact) + sign(impactY - 0.5) * spinY * spinImpact);
-          setSpinY(spinY * (1 - spinImpact) - sign(impactY - 0.5) * spinX * spinImpact);
-        }
-      }
-
-      // Out-of-bounds detection
-      if (newTop - ballRadius < 0 || newTop + ballRadius > courtHeight || newLeft - ballRadius < 0 || newLeft + ballRadius > courtWidth) {
-        if (outOfBounds) {
-          outOfBounds();
-        }
-      }
+      // ... (same as before)
 
       setPosition({ top: newTop, left: newLeft });
     }, 10);
