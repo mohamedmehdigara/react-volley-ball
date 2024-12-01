@@ -28,7 +28,21 @@ function Ball({
   const ballRadius = 10;
 
   const isPlayerCollision = (ballPosition, ballRadius, playerPaddle) => {
-    // ... (same as before)
+    const { top, left, width, height } = playerPaddle;
+
+    if (
+      ballPosition.top + ballRadius >= top &&
+      ballPosition.top - ballRadius <= top + height &&
+      ballPosition.left + ballRadius >= left &&
+      ballPosition.left - ballRadius <= left + width
+    ) {
+      return {
+        side: ballPosition.top < top + height / 2 ? 'top' : 'bottom',
+        impactY: (ballPosition.top - top) / height,
+      };
+    }
+
+    return null;
   };
 
   const sign = (x) => (x > 0 ? 1 : x < 0 ? -1 : 0);
@@ -36,8 +50,7 @@ function Ball({
   const resetBall = () => {
     setPosition(initialPosition);
     setSpeed(initialSpeed);
-    // Set initial direction and spin based on desired reset behavior
-    setDirection({ x: 1, y: 1 }); // Adjust initial direction as needed
+    setDirection({ x: 1, y: 1 });
     setSpinX(0);
     setSpinY(0);
   };
@@ -70,7 +83,7 @@ function Ball({
         if (outOfBounds) {
           outOfBounds('player2');
         }
-        resetBall(); // Reset ball position and direction
+        resetBall();
       } else if (newLeft + ballRadius >= courtWidth) {
         // Player 1 scores
         if (outOfBounds) {
@@ -80,18 +93,40 @@ function Ball({
       }
 
       // Check for net collision
-      // ... (same as before)
+      if (newLeft >= courtWidth / 2 - netWidth / 2 && newLeft <= courtWidth / 2 + netWidth / 2 && newTop >= 0 && newTop <= netHeight) {
+        setDirection({ ...direction, y: -direction.y });
+        setSpinY(-spinY); // Reverse spin on y-axis
+        setSpeed(speed * 0.8); // Reduce speed after net collision
+      }
 
       // Check for player collisions
-      // ... (same as before)
+      const player1Collision = isPlayerCollision(position, ballRadius, player1Paddle);
+      const player2Collision = isPlayerCollision(position, ballRadius, player2Paddle);
+
+      if (player1Collision || player2Collision) {
+        const collisionData = player1Collision || player2Collision;
+        const { side, impactY } = collisionData;
+
+        // Update ball direction and spin based on collision
+        setDirection({ ...direction, y: -direction.y });
+        setSpinY(-spinY); // Reverse spin on y-axis
+
+        // Adjust spin based on impact point
+        const spinImpact = Math.abs(impactY - 0.5) * 0.5;
+        setSpinX(spinX * (1 - spinImpact) + sign(impactY - 0.5) * spinY * spinImpact);
+        setSpinY(spinY * (1 - spinImpact) - sign(impactY - 0.5) * spinX * spinImpact);
+      }
 
       setPosition({ top: newTop, left: newLeft });
     }, 10);
 
     return () => clearInterval(intervalId);
-  }, [position, speed, direction, spinX, spinY, airResistance, courtWidth, courtHeight, netWidth, netHeight, onPlayerCollision, outOfBounds, playerPaddle]);
+  }, [position, speed, direction, spinX, spinY, airResistance, courtWidth, courtHeight, netWidth, netHeight, onPlayerCollision, outOfBounds, player1Paddle, player2Paddle]);
 
-  return <Ball top={position.top} left={position.left} />;
+  return <Ball top={position.top} left={position.left}
+  player1Paddle={{ top: 100, left: 10, width: 20, height: 100 }}
+  player2Paddle={{ top: 100, left: 780, width: 20, height: 100 }}
+  />;
 }
 
 export default Ball;
