@@ -29,6 +29,10 @@ function Ball({
   const ballRadius = 10;
 
   const isPlayerCollision = (ballPosition, ballRadius, playerPaddle) => {
+
+    if (!playerPaddle) {
+      return null;
+    }
     const { top, left, width, height } = playerPaddle;
 
     if (
@@ -54,6 +58,26 @@ function Ball({
     setDirection({ x: 1, y: 1 });
     setSpinX(0);
     setSpinY(0);
+  };
+
+  const isPowerUpActive = (powerUp, ballPosition) => {
+    const distanceX = Math.abs(ballPosition.left - powerUp.x);
+    const distanceY = Math.abs(ballPosition.top - powerUp.y);
+    return distanceX < ballRadius && distanceY < ballRadius;
+  };
+
+  const applyPowerUpEffect = (powerUp) => {
+    switch (powerUp.type) {
+      case 'speedBoost':
+        setSpeed(speed * 1.5);
+        setTimeout(() => {
+          setSpeed(speed / 1.5);
+        }, powerUp.duration);
+        break;
+      // Add more power-up types and effects here
+      default:
+        break;
+    }
   };
 
   const Ball = styled.div`
@@ -127,7 +151,10 @@ function Ball({
     return () => clearInterval(intervalId);
   }, [position, speed, direction, spinX, spinY, airResistance, courtWidth, courtHeight, netWidth, netHeight, onPlayerCollision, outOfBounds, player1Paddle, player2Paddle, powerUps]);
 
-  return <Ball top={position.top} left={position.left} />;
+  return <Ball top={position.top} left={position.left}
+  player1Paddle={{ top: 100, left: 10, width: 20, height: 100 }}
+  player2Paddle={{ top: 100, left: 780, width: 20, height: 100 }}
+  />;
 }
 
 export default Ball;
