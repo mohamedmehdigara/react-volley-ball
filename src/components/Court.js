@@ -1,4 +1,6 @@
 import React from 'react';
+import Ball from './Ball';
+import Paddle from './Paddle';
 import styled from 'styled-components';
 
 const Court = () => {
@@ -67,6 +69,18 @@ const Court = () => {
       {/* Player icons */}
       <PlayerIcon left="20px" top="150px" />
       <PlayerIcon left={`${courtWidth - 40}px`} top="150px" />
+      <Ball
+        courtWidth={courtWidth}
+        courtHeight={courtHeight}
+        netHeight={netHeight}
+        netWidth={netWidth}
+        // Pass player paddle positions here
+        player1Paddle={{ top: 100, left: 10, width: 20, height: 100 }}
+        player2Paddle={{ top: 100, left: 780, width: 20, height: 100 }}
+        // ... (other props for ball behavior)
+      />
+      <Paddle playerSide="player1" />
+      <Paddle playerSide="player2" />
     </CourtContainer>
   );
 };
