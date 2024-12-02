@@ -1,18 +1,7 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import styled from 'styled-components';
 
-
-
-function Paddle({ initialTop = 100, playerSide }) {
-    const Paddle = styled.div`
-    width: 20px;
-    height: 100px;
-    background-color: blue;
-    position: absolute;
-    top: ${(props) => props.top}px;
-    left: ${(props) => props.left}px;
-  `;
-
+const Paddle = ({ initialTop, playerSide, courtHeight }) => {
   const [top, setTop] = useState(initialTop);
   const paddleSpeed = 5;
 
@@ -39,6 +28,6 @@ function Paddle({ initialTop = 100, playerSide }) {
     <Paddle top={top} left={playerSide === 'player1' ? 10 : courtWidth - 30}>
     </Paddle>
   );
-}
+};
 
 export default Paddle;

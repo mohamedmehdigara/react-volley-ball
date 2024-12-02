@@ -79,8 +79,8 @@ const Court = () => {
         player2Paddle={{ top: 100, left: 780, width: 20, height: 100 }}
         // ... (other props for ball behavior)
       />
-      <Paddle playerSide="player1" />
-      <Paddle playerSide="player2" />
+      <Paddle playerSide="player1" courtHeight={courtHeight} />
+      <Paddle playerSide="player2" courtHeight={courtHeight} />
     </CourtContainer>
   );
 };
