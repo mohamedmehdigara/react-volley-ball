@@ -1,32 +1,55 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import styled from 'styled-components';
 
-const Paddle = ({ initialTop, playerSide, courtHeight }) => {
+const Paddle = ({ initialTop, playerSide, courtHeight, courtWidth }) => {
   const [top, setTop] = useState(initialTop);
-  const paddleSpeed = 5;
+  const [speed, setSpeed] = useState(0); // Initial speed
+  const [acceleration] = useState(0.2); // Acceleration factor
 
-  const handleKeyUp = (event) => {
+  const paddleHeight = 100;
+  const paddleWidth = 20;
+
+  const handleKeyDown = (event) => {
     if (event.key === 'w' && playerSide === 'player1') {
-      setTop((prevTop) => Math.max(prevTop - paddleSpeed, 0));
+      setSpeed(-paddleSpeed);
     } else if (event.key === 's' && playerSide === 'player1') {
-      setTop((prevTop) => Math.min(prevTop + paddleSpeed, courtHeight - paddleHeight));
+      setSpeed(paddleSpeed);
     } else if (event.key === 'ArrowUp' && playerSide === 'player2') {
-      setTop((prevTop) => Math.max(prevTop - paddleSpeed, 0));
+      setSpeed(-paddleSpeed);
     } else if (event.key === 'ArrowDown' && playerSide === 'player2') {
-      setTop((prevTop) => Math.min(prevTop + paddleSpeed, courtHeight - paddleHeight));
+      setSpeed(paddleSpeed);
     }
   };
 
-  useEffect(() => {
-    document.addEventListener('keyup', handleKeyUp);
-    return () => document.removeEventListener('keyup', handleKeyUp);
-  }, [handleKeyUp]); 1 
+  const handleKeyUp = (event) => {
+    setSpeed(0);
+  };
 
-  const paddleHeight = 100;
+  useEffect(() => {
+    const animationFrame = () => {
+      const newTop = Math.min(Math.max(top + speed, 0), courtHeight - paddleHeight);
+      setTop(newTop);
+      requestAnimationFrame(animationFrame);
+    };
+
+    document.addEventListener('keydown', handleKeyDown);
+    document.addEventListener('keyup', handleKeyUp);
+    requestAnimationFrame(animationFrame);
+
+    return () => {
+      document.removeEventListener('keydown', handleKeyDown);
+      document.removeEventListener('keyup', handleKeyUp);
+      cancelAnimationFrame(animationFrame);
+    };
+  }, []);
 
   return (
-    <Paddle top={top} left={playerSide === 'player1' ? 10 : courtWidth - 30}>
-    </Paddle>
+    <Paddle
+      top={top}
+      left={playerSide === 'player1' ? 0 : courtWidth - paddleWidth}
+      width={paddleWidth}
+      height={paddleHeight}
+    />
   );
 };
 

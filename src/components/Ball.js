@@ -1,9 +1,8 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import styled from 'styled-components';
+import { SAT } from 'sat';
 
-
-
-function Ball({
+const Ball = ({
   initialPosition = { top: 200, left: 400 },
   initialSpeed = 5,
   initialDirection = { x: 1, y: 1 },
@@ -19,7 +18,7 @@ function Ball({
   player1Paddle,
   player2Paddle,
   powerUps,
-}) {
+}) => {
   const [position, setPosition] = useState(initialPosition);
   const [speed, setSpeed] = useState(initialSpeed);
   const [direction, setDirection] = useState(initialDirection);
@@ -28,26 +27,18 @@ function Ball({
 
   const ballRadius = 10;
 
-  const isPlayerCollision = (ballPosition, ballRadius, playerPaddle) => {
+  const isPlayerCollision = (ballPosition, ballVelocity, playerPaddle) => {
+    const ballCircle = new SAT.Circle(ballPosition.x, ballPosition.y, ballRadius);
+    const paddleRect = new SAT.Box(playerPaddle.left, playerPaddle.top, playerPaddle.width, playerPaddle.height);
 
-    if (!playerPaddle) {
-      return null;
-    }
-    const { top, left, width, height } = playerPaddle;
+    const response = SAT.testCirclePolygon(ballCircle, paddleRect);
 
-    if (
-      ballPosition.top + ballRadius >= top &&
-      ballPosition.top - ballRadius <= top + height &&
-      ballPosition.left + ballRadius >= left &&
-      ballPosition.left - ballRadius <= left + width
-    ) {
-      const impactY = (ballPosition.top - top) / height;
-      return {
-        side: impactY < 0.5 ? 'top' : 'bottom',
-        impactY,
-      };
+    if (response.collided) {
+      // Calculate new ball velocity and spin based on collision angle and paddle velocity
+      // ... (Implement advanced collision physics using SAT.js)
+      return true;
     }
-    return null;
+    return false;
   };
 
   const sign = (x) => (x > 0 ? 1 : x < 0 ? -1 : 0);
@@ -81,80 +72,80 @@ function Ball({
   };
 
   const Ball = styled.div`
-  width: 20px;
-  height: 20px;
-  border-radius: 50%;
-  background-color: red;
-  position: absolute;
-  top: ${(props) => props.top}px;
-  left: ${(props) => props.left}px;
-`;
+    width: 20px;
+    height: 20px;
+    border-radius: 50%;
+    background-color: red;
+    position: absolute;
+    top: ${(props) => props.top}px;
+    left: ${(props) => props.left}px;
+  `;
 
+  const animationRef = useRef(null);
   useEffect(() => {
-    const intervalId = setInterval(() => {
+    const animateBall = () => {
       const newTop = position.top + speed * direction.y + spinY;
       const newLeft = position.left + speed * direction.x + spinX;
 
-      // Apply air resistance
+      // Apply air resistance and spin effects
       setSpeed(Math.max(speed - airResistance, 0));
 
-      // Check for collisions with court boundaries
+      // Check for collisions with court boundaries, net, and paddles
       if (newTop - ballRadius <= 0 || newTop + ballRadius >= courtHeight) {
         setDirection({ ...direction, y: -direction.y });
         setSpinY(-spinY);
-      }
-      if (newLeft - ballRadius <= 0) {
-        outOfBounds('player2');
+      } else if (newLeft - ballRadius <= 0 || newLeft + ballRadius >= courtWidth) {
+        outOfBounds(newLeft < courtWidth / 2 ? 'player2' : 'player1');
         resetBall();
-      } else if (newLeft + ballRadius >= courtWidth) {
-        outOfBounds('player1');
-        resetBall();
-      }
-
-      // Check for net collision
-      if (newLeft >= courtWidth / 2 - netWidth / 2 && newLeft <= courtWidth / 2 + netWidth / 2 && newTop >= 0 && newTop <= netHeight) {
+      } else if (newLeft >= courtWidth / 2 - netWidth / 2 && newLeft <= courtWidth / 2 + netWidth / 2 && newTop >= 0 && newTop <= netHeight) {
         setDirection({ ...direction, y: -direction.y });
         setSpinY(-spinY);
         setSpeed(speed * 0.8);
       }
 
-      // Check for player collisions and power-ups
-      const player1Collision = isPlayerCollision(position, ballRadius, player1Paddle);
-      const player2Collision = isPlayerCollision(position, ballRadius, player2Paddle);
+      if (isPlayerCollision(position, { x: speed * direction.x, y: speed * direction.y }, player1Paddle)) {
+        // Handle collision with player 1 paddle
+        // ... (Implement collision physics and spin effects)
+      } else if (isPlayerCollision(position, { x: speed * direction.x, y: speed * direction.y }, player2Paddle)) {
+        // Handle collision with player 2 paddle
+        // ... (Implement collision physics and spin effects)
+      }
 
-      if (player1Collision || player2Collision) {
-        const collisionData = player1Collision || player2Collision;
-        const { side, impactY } = collisionData;
-
-        // Update ball direction and spin based on collision
-        setDirection({ ...direction, y: -direction.y });
-        setSpinY(-spinY);
-
-        // Adjust spin based on impact point
-        const spinImpact = Math.abs(impactY - 0.5) * 0.5;
-        setSpinX(spinX * (1 - spinImpact) + sign(impactY - 0.5) * spinY * spinImpact);
-        setSpinY(spinY * (1 - spinImpact) - sign(impactY - 0.5) * spinX * spinImpact);
-
-        // Apply power-up effects if applicable
-        if (powerUps.length > 0) {
-          const currentPowerUp = powerUps[0];
-          if (isPowerUpActive(currentPowerUp, position)) {
-            applyPowerUpEffect(currentPowerUp);
-            powerUps.shift(); // Remove used power-up
-          }
+      // Apply power-ups if applicable
+      if (powerUps.length > 0) {
+        const currentPowerUp = powerUps[0];
+        if (isPowerUpActive(currentPowerUp, position)) {
+          applyPowerUpEffect(currentPowerUp);
+          powerUps.shift(); // Remove used power-up
         }
       }
 
       setPosition({ top: newTop, left: newLeft });
-    }, 10);
+      animationRef.current = requestAnimationFrame(animateBall);
+    };
 
-    return () => clearInterval(intervalId);
-  }, [position, speed, direction, spinX, spinY, airResistance, courtWidth, courtHeight, netWidth, netHeight, onPlayerCollision, outOfBounds, player1Paddle, player2Paddle, powerUps]);
+    animationRef.current = requestAnimationFrame(animateBall);
 
-  return <Ball top={position.top} left={position.left}
-  player1Paddle={{ top: 100, left: 10, width: 20, height: 100 }}
-  player2Paddle={{ top: 100, left: 780, width: 20, height: 100 }}
-  />;
-}
+    return () => cancelAnimationFrame(animationRef.current);
+  }, [
+    position,
+    speed,
+    direction,
+    spinX,
+    spinY,
+    airResistance,
+    courtWidth,
+    courtHeight,
+    netWidth,
+    netHeight,
+    onPlayerCollision,
+    outOfBounds,
+    player1Paddle,
+    player2Paddle,
+    powerUps,
+  ]);
+
+  return <Ball top={position.top} left={position.left} />;
+};
 
 export default Ball;
