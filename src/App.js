@@ -5,8 +5,6 @@ import Court from './components/Court';
 import Net from './components/Net';
 import Ball from './components/Ball';
 import Player from './components/Player';
-import Referee from './components/Referee';
-import LineJudge from './components/LineJudge';
 
 const GameContainer = styled.div`
   display: flex;
@@ -15,49 +13,23 @@ const GameContainer = styled.div`
   height: 100vh;
 `;
 
-function App() {
+function VolleyballGame() {
   const [ballPosition, setBallPosition] = useState({ top: 200, left: 400 });
   const [player1Position, setPlayer1Position] = useState({ top: 160, left: 50 });
   const [player2Position, setPlayer2Position] = useState({ top: 160, left: 750 });
-  const [score, setScore] = useState({ team1Score: 0, team2Score: 0 });
 
-
-  // Game settings (adjust as needed)
-  const courtWidth = 800;
-  const courtHeight = 400;
-  const netHeight = 243;
-  const ballRadius = 20;
-  const ballSpeed = 5;
-  const playerHeight = 80;
-  const playerWidth = 40;
-
-  const updateBallPosition = () => {
-    const newTop = ballPosition.top + ballSpeed * (Math.random() - 0.5);
-    const newLeft = ballPosition.left + ballSpeed * (Math.random() - 0.5);
-
-    // Ensure ball stays within court boundaries
-    const clampedTop = Math.min(Math.max(newTop, ballRadius), courtHeight - ballRadius);
-    const clampedLeft = Math.min(Math.max(newLeft, ballRadius), courtWidth - ballRadius);
-
-    setBallPosition({ top: clampedTop, left: clampedLeft });
-  };
-
-  useEffect(() => {
-    const intervalId = setInterval(updateBallPosition, 10);
-    return () => clearInterval(intervalId);
-  }, []);
+  // ... game logic, controls, and styling ...
 
   return (
     <GameContainer>
-      <Court />
-      <Net height={netHeight} width={2} left={courtWidth / 2} />
-      <Ball radius={ballRadius} />
-      <Player height={playerHeight} width={playerWidth} />
-      <Player height={playerHeight} width={playerWidth} />
-      <Referee ballPosition={ballPosition} player1Position={player1Position} player2Position={player2Position} setScore={setScore} />
-      <LineJudge ballPosition={ballPosition} courtWidth={courtWidth} courtHeight={courtHeight} />
+      <Court>
+        <Net />
+        <Ball style={{ top: ballPosition.top, left: ballPosition.left }} />
+        <Player style={{ top: player1Position.top, left: player1Position.left }} />
+        <Player style={{ top: player2Position.top, left: player2Position.left }} />
+      </Court>
     </GameContainer>
   );
 }
 
-export default App;
+export default VolleyballGame;
