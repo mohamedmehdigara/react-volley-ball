@@ -4,6 +4,23 @@ import Ball from './Ball';
 import Player from './Player';
 import PowerUp from './PowerUp';
 
+const CourtContainer = styled.div`
+  width: 800px;
+  height: 400px;
+  border: 2px solid black;
+  position: relative;
+  background-color: #f0f0f0;
+`;
+
+const Net = styled.div`
+  width: 2px;
+  height: 243px;
+  background-color: black;
+  position: absolute;
+  left: 400px;
+  top: 0;
+`;
+
 const Court = () => {
   const courtWidth = 800;
   const courtHeight = 400;
@@ -11,13 +28,7 @@ const Court = () => {
   const netWidth = 2;
 
   const [ballProps, setBallProps] = useState({
-    position: { top: 200, left: 400 },
-    speed: 5,
-    direction: { x: 1, y: 1 },
-    courtWidth,
-    courtHeight,
-    netWidth,
-    netHeight,
+    // ...
   });
 
   const [player1Position, setPlayer1Position] = useState({ top: 160, left: 50 });
@@ -28,11 +39,18 @@ const Court = () => {
   const [powerUps, setPowerUps] = useState([]);
 
   const generatePowerUp = () => {
-    // ... (Logic to generate random power-up type and position)
+    const newPowerUp = {
+      type: 'speedBoost', // Example power-up type
+      position: {
+        top: Math.random() * courtHeight,
+        left: Math.random() * courtWidth,
+      },
+      duration: 5000, // Duration in milliseconds
+    };
     setPowerUps([...powerUps, newPowerUp]);
   };
 
-  // ... (Rest of the Court component, including player movement, collision detection, and scorekeeping logic)
+  // ... (rest of the Court component)
 
   return (
     <CourtContainer>
