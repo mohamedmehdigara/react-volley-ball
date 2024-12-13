@@ -1,50 +1,48 @@
+import React, { useState, useEffect } from 'react';
 import styled from 'styled-components';
+import Ball from './Ball';
+import Player from './Player';
+import PowerUp from './PowerUp';
 
 const Court = () => {
   const courtWidth = 800;
   const courtHeight = 400;
   const netHeight = 243;
   const netWidth = 2;
-  const lineWidth = 2;
 
-  const CourtContainer = styled.div`
-    width: ${courtWidth}px;
-    height: ${courtHeight}px;
-    border: 2px solid black;
-    position: relative;
-    background-color: #f0f0f0; /* Light gray court surface */
-  `;
+  const [ballProps, setBallProps] = useState({
+    position: { top: 200, left: 400 },
+    speed: 5,
+    direction: { x: 1, y: 1 },
+    courtWidth,
+    courtHeight,
+    netWidth,
+    netHeight,
+  });
 
-  const Net = styled.div`
-    width: ${netWidth}px;
-    height: ${netHeight}px;
-    background-color: black;
-    position: absolute;
-    left: ${courtWidth / 2}px;
-    top: 0;
-  `;
+  const [player1Position, setPlayer1Position] = useState({ top: 160, left: 50 });
+  const [player2Position, setPlayer2Position] = useState({ top: 160, left: 750 });
 
-  const Line = styled.div`
-    width: ${lineWidth}px;
-    height: ${(props) => props.height}px;
-    background-color: black;
-    position: absolute;
-    left: ${(props) => props.left}px;
-    top: ${(props) => props.top}px;
-  `;
+  const [score, setScore] = useState({ player1: 0, player2: 0 });
+
+  const [powerUps, setPowerUps] = useState([]);
+
+  const generatePowerUp = () => {
+    // ... (Logic to generate random power-up type and position)
+    setPowerUps([...powerUps, newPowerUp]);
+  };
+
+  // ... (Rest of the Court component, including player movement, collision detection, and scorekeeping logic)
 
   return (
     <CourtContainer>
       <Net />
-      <Line height={`${courtHeight}px`} left={`${courtWidth / 2}px`} />
-      <Line height={`${lineWidth}px`} left="0px" top={`${courtHeight / 2}px`} />
-      <Line height={`${lineWidth}px`} left={`${courtWidth - lineWidth}px`} top={`${courtHeight / 2}px`} />
-      <Line height={`${lineWidth}px`} left={`${courtWidth / 4}px`} top="0px" />
-      <Line height={`${lineWidth}px`} left={`${courtWidth / 4}px`} top={`${courtHeight - lineWidth}px`} />
-      <Line height={`${lineWidth}px`} left={`${courtWidth / 6}px`} top="0px" />
-      <Line height={`${lineWidth}px`} left={`${courtWidth / 6}px`} top={`${courtHeight - lineWidth}px`} />
-      <Line height={`${lineWidth}px`} left={`${courtWidth * 5 / 6}px`} top="0px" />
-      <Line height={`${lineWidth}px`} left={`${courtWidth * 5 / 6}px`} top={`${courtHeight - lineWidth}px`} />
+      <Ball {...ballProps} powerUps={powerUps} setPowerUps={setPowerUps} />
+      <Player position={player1Position} />
+      <Player position={player2Position} />
+      {powerUps.map((powerUp, index) => (
+        <PowerUp key={index} type={powerUp.type} position={powerUp.position} />
+      ))}
     </CourtContainer>
   );
 };
