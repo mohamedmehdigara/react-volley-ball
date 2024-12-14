@@ -44,6 +44,9 @@ function VolleyballGame() {
   const [player2Position, setPlayer2Position] = useState({ top: 160, left: 750 });
 
   const [score, setScore] = useState({ player1: 0, player2: 0 });
+  const [isGameOver, setIsGameOver] = useState(false);
+const [winner, setWinner] = useState('');
+
 
   const handlePlayerMove = (playerId, direction) => {
     const movementAmount = 10; // Adjust movement speed as needed
@@ -70,11 +73,26 @@ function VolleyballGame() {
     // ... (Implement advanced collision detection and physics)
   };
 
+  const updateScore = (player) => {
+    setScore((prevScore) => ({
+      ...prevScore,
+      [player]: prevScore[player] + 1,
+    }));
+  
+    if (prevScore[player] + 1 >= 11) {
+      setIsGameOver(true);
+      setWinner(player);
+    }
+  };
+
   return (
     <GameContainer>
-      <Scoreboard>
-        Player 1: {score.player1} - Player 2: {score.player2}
-      </Scoreboard>
+       <Scoreboard
+      player1Score={score.player1}
+      player2Score={score.player2}
+      isGameOver={isGameOver}
+      winner={winner}
+    />
       <Court>
         <Net />
         <Ball {...ballProps} />
