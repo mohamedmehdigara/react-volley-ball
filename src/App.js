@@ -4,22 +4,16 @@ import styled from 'styled-components';
 import Court from './components/Court';
 import Ball from './components/Ball';
 import Player from './components/Player';
-import Net from "./components/Net";
+import AIOpponent from './components/AIOpponent';
+import PowerUp from './components/PowerUp';
+import Scoreboard from './components/Scoreboard';
 
 const GameContainer = styled.div`
   display: flex;
   justify-content: center;
   align-items: center;
   height: 100vh;
-  background-color: #e0e0e0; /* Light gray background */
-`;
-
-const Scoreboard = styled.div`
-  position: absolute;
-  top: 50px;
-  left: 50%;
-  transform: translate(-50%);
-  font-size: 3rem;
+  background-color: #e0e0e0;
 `;
 
 function VolleyballGame() {
@@ -32,8 +26,6 @@ function VolleyballGame() {
     position: { top: 200, left: 400 },
     speed: 5,
     direction: { x: 1, y: 1 },
-    spinX: 0,
-    spinY: 0,
     courtWidth,
     courtHeight,
     netWidth,
@@ -44,35 +36,22 @@ function VolleyballGame() {
   const [player2Position, setPlayer2Position] = useState({ top: 160, left: 750 });
 
   const [score, setScore] = useState({ player1: 0, player2: 0 });
-  const [prevScore, setprevScore] = useState({ player1: 0, player2: 0 });
+
+  const [powerUps, setPowerUps] = useState([]);
 
   const [isGameOver, setIsGameOver] = useState(false);
-const [winner, setWinner] = useState('');
-
+  const [winner, setWinner] = useState('');
 
   const handlePlayerMove = (playerId, direction) => {
-    const movementAmount = 10; // Adjust movement speed as needed
-    const newPosition = { ...player1Position }; // Copy current position
-
-    if (playerId === 'player1') {
-      if (direction === 'up') {
-        newPosition.top = Math.max(newPosition.top - movementAmount, 0);
-      } else if (direction === 'down') {
-        newPosition.top = Math.min(newPosition.top + movementAmount, courtHeight - Player.HEIGHT);
-      }
-      setPlayer1Position(newPosition);
-    } else if (playerId === 'player2') {
-      if (direction === 'up') {
-        newPosition.top = Math.max(newPosition.top - movementAmount, 0);
-      } else if (direction === 'down') {
-        newPosition.top = Math.min(newPosition.top + movementAmount, courtHeight - Player.HEIGHT);
-      }
-      setPlayer2Position(newPosition);
-    }
+    // ... (Player movement logic)
   };
 
   const handleBallCollision = () => {
-    // ... (Implement advanced collision detection and physics)
+    // ... (Ball collision logic)
+  };
+
+  const generatePowerUp = () => {
+    // ... (Power-up generation logic)
   };
 
   const updateScore = (player) => {
@@ -86,19 +65,29 @@ const [winner, setWinner] = useState('');
       setWinner(player);
     }
   };
+
   return (
     <GameContainer>
-       <Scoreboard
-      player1Score={score.player1}
-      player2Score={score.player2}
-      isGameOver={isGameOver}
-      winner={winner}
-    />
+      <Scoreboard
+        player1Score={score.player1}
+        player2Score={score.player2}
+        isGameOver={isGameOver}
+        winner={winner}
+      />
       <Court>
         <Net />
-        <Ball {...ballProps} />
+        <Ball {...ballProps} powerUps={powerUps} setPowerUps={setPowerUps} />
         <Player position={player1Position} />
-        <Player position={player2Position} />
+        <AIOpponent
+          playerSide="player2"
+          courtHeight={courtHeight}
+          ballPosition={ballProps.position}
+          ballSpeed={ballProps.speed}
+          ballDirection={ballProps.direction}
+        />
+        {powerUps.map((powerUp, index) => (
+          <PowerUp key={index} type={powerUp.type} position={powerUp.position} />
+        ))}
       </Court>
     </GameContainer>
   );
