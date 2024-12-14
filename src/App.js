@@ -44,6 +44,8 @@ function VolleyballGame() {
   const [player2Position, setPlayer2Position] = useState({ top: 160, left: 750 });
 
   const [score, setScore] = useState({ player1: 0, player2: 0 });
+  const [prevScore, setprevScore] = useState({ player1: 0, player2: 0 });
+
   const [isGameOver, setIsGameOver] = useState(false);
 const [winner, setWinner] = useState('');
 
@@ -84,7 +86,6 @@ const [winner, setWinner] = useState('');
       setWinner(player);
     }
   };
-
   return (
     <GameContainer>
        <Scoreboard
