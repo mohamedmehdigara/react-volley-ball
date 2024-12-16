@@ -7,6 +7,7 @@ import Player from './components/Player';
 import AIOpponent from './components/AIOpponent';
 import PowerUp from './components/PowerUp';
 import Scoreboard from './components/Scoreboard';
+import Net from './components/Net';
 
 const GameContainer = styled.div`
   display: flex;
@@ -55,17 +56,17 @@ function VolleyballGame() {
   };
 
   const updateScore = (player) => {
-    setScore((prevScore) => ({
-      ...prevScore,
-      [player]: prevScore[player] + 1,
-    }));
-
-    if (prevScore[player] + 1 >= 11) {
+    setScore((prevScore) => {
+      const newScore = { ...prevScore }; // Create a copy of the current score
+      newScore[player] += 1; // Increment the score for the specified player
+      return newScore;
+    });
+  
+    if (newScore[player] >= 11) {
       setIsGameOver(true);
       setWinner(player);
     }
   };
-
   return (
     <GameContainer>
       <Scoreboard
