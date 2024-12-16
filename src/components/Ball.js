@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import styled from 'styled-components';
+import { SAT } from 'sat'; // For advanced collision detection
 
 const Ball = ({
   initialPosition = { top: 200, left: 400 },
@@ -26,10 +27,20 @@ const Ball = ({
   const [spinY, setSpinY] = useState(initialSpinY);
 
   const ballRadius = 10;
+  const ballMass = 1; // Adjust ball mass for different physics behaviors
 
-  const isPlayerCollision = (ballPosition, playerPaddle) => {
-    // Implement more advanced collision detection logic here
-    // ...
+  const isPlayerCollision = (ballPosition, ballVelocity, playerPaddle) => {
+    const ballCircle = new SAT.Circle(ballPosition.x, ballPosition.y, ballRadius);
+    const paddleRect = new SAT.Box(playerPaddle.left, playerPaddle.top, playerPaddle.width, playerPaddle.height);
+
+    const response = SAT.testCirclePolygon(ballCircle, paddleRect);
+
+    if (response.collided) {
+      // Calculate new ball velocity and spin based on collision angle and paddle velocity
+      // ... (Implement advanced collision physics using SAT.js)
+      return true;
+    }
+    return false;
   };
 
   const sign = (x) => (x > 0 ? 1 : x < 0 ? -1 : 0);
@@ -96,12 +107,12 @@ const Ball = ({
       }
 
       // Check for player collisions
-      if (isPlayerCollision(position, player1Paddle)) {
+      if (isPlayerCollision(position, { x: speed * direction.x, y: speed * direction.y }, player1Paddle)) {
         // Handle collision with player 1 paddle
-        // ... (Implement collision physics and spin effects)
-      } else if (isPlayerCollision(position, player2Paddle)) {
+        // ... (Implement advanced collision physics and spin effects)
+      } else if (isPlayerCollision(position, { x: speed * direction.x, y: speed * direction.y }, player2Paddle)) {
         // Handle collision with player 2 paddle
-        // ... (Implement collision physics and spin effects)
+        // ... (Implement advanced collision physics and spin effects)
       }
 
       // Apply power-ups if applicable

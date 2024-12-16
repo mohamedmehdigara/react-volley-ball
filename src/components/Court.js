@@ -4,6 +4,7 @@ import Ball from './Ball';
 import Player from './Player';
 import AIOpponent from './AIOpponent';
 import PowerUp from './PowerUp';
+import Net from './Net';
 
 const CourtContainer = styled.div`
   width: 800px;
@@ -13,51 +14,10 @@ const CourtContainer = styled.div`
   background-color: #f0f0f0;
 `;
 
-const Net = styled.div`
-  width: 2px;
-  height: 243px;
-  background-color: black;
-  position: absolute;
-  left: 400px;
-  top: 0;
-`;
+
 
 const Court = () => {
-  const courtWidth = 800;
-  const courtHeight = 400;
-  const netHeight = 243;
-  const netWidth = 2;
-
-  const [ballProps, setBallProps] = useState({
-    position: { top: 200, left: 400 },
-    speed: 5,
-    direction: { x: 1, y: 1 },
-    courtWidth,
-    courtHeight,
-    netWidth,
-    netHeight,
-  });
-
-  const [player1Position, setPlayer1Position] = useState({ top: 160, left: 50 });
-  const [player2Position, setPlayer2Position] = useState({ top: 160, left: 750 });
-
-  const [score, setScore] = useState({ player1: 0, player2: 0 });
-
-  const [powerUps, setPowerUps] = useState([]);
-
-  const generatePowerUp = () => {
-    const newPowerUp = {
-      type: 'speedBoost', // Example power-up type
-      position: {
-        top: Math.random() * courtHeight,
-        left: Math.random() * courtWidth,
-      },
-      duration: 5000, // Duration in milliseconds
-    };
-    setPowerUps([...powerUps, newPowerUp]);
-  };
-
-  // ... (rest of the Court component, including player movement, collision detection, and scorekeeping logic)
+  // ... (rest of the Court component)
 
   return (
     <CourtContainer>

@@ -59,7 +59,7 @@ function VolleyballGame() {
       ...prevScore,
       [player]: prevScore[player] + 1,
     }));
-  
+
     if (prevScore[player] + 1 >= 11) {
       setIsGameOver(true);
       setWinner(player);
