@@ -38,6 +38,9 @@ function VolleyballGame() {
 
   const [score, setScore] = useState({ player1: 0, player2: 0 });
 
+  const [newScore, setnewScore] = useState({  });
+
+
   const [powerUps, setPowerUps] = useState([]);
 
   const [isGameOver, setIsGameOver] = useState(false);

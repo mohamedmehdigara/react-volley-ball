@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import styled from 'styled-components';
-import { SAT } from 'sat'; // For advanced collision detection
+import { Circle, Polygon, Vector, Response, SAT } from 'sat'; 
 
 const Ball = ({
   initialPosition = { top: 200, left: 400 },
@@ -15,8 +15,8 @@ const Ball = ({
   netHeight,
   onPlayerCollision,
   outOfBounds,
-  player1Paddle,
-  player2Paddle,
+  player1Paddle, 
+  player2Paddle, 
   powerUps,
   setPowerUps,
 }) => {
@@ -27,16 +27,25 @@ const Ball = ({
   const [spinY, setSpinY] = useState(initialSpinY);
 
   const ballRadius = 10;
-  const ballMass = 1; // Adjust ball mass for different physics behaviors
+  const ballMass = 1; 
 
   const isPlayerCollision = (ballPosition, ballVelocity, playerPaddle) => {
-    const ballCircle = new SAT.Circle(ballPosition.x, ballPosition.y, ballRadius);
-    const paddleRect = new SAT.Box(playerPaddle.left, playerPaddle.top, playerPaddle.width, playerPaddle.height);
+    const ballCircle = new Circle(ballPosition.x, ballPosition.y, ballRadius);
+    const paddleRect = new Polygon(
+      new SAT.Vector(playerPaddle.left, playerPaddle.top), 
+      [
+        new SAT.Vector(0, 0), 
+        new SAT.Vector(playerPaddle.width, 0), 
+        new SAT.Vector(playerPaddle.width, playerPaddle.height), 
+        new SAT.Vector(0, playerPaddle.height) 
+      ]
+    );
 
-    const response = SAT.testCirclePolygon(ballCircle, paddleRect);
+    const response = new Response(); 
+    const collided = SAT.testCirclePolygon(ballCircle, paddleRect, response); 
 
-    if (response.collided) {
-      // Calculate new ball velocity and spin based on collision angle and paddle velocity
+    if (collided) {
+      // Calculate new ball velocity based on collision response
       // ... (Implement advanced collision physics using SAT.js)
       return true;
     }
