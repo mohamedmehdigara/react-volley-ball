@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import styled from 'styled-components';
-import { Circle, Polygon, Vector, Response, SAT } from 'sat'; 
+import { Circle, Polygon, Vector, Response, SAT } from 'sat';
 
 const Ball = ({
   initialPosition = { top: 200, left: 400 },
@@ -15,8 +15,8 @@ const Ball = ({
   netHeight,
   onPlayerCollision,
   outOfBounds,
-  player1Paddle, 
-  player2Paddle, 
+  player1Paddle,
+  player2Paddle,
   powerUps,
   setPowerUps,
 }) => {
@@ -27,29 +27,46 @@ const Ball = ({
   const [spinY, setSpinY] = useState(initialSpinY);
 
   const ballRadius = 10;
-  const ballMass = 1; 
+  const ballMass = 1;
 
   const isPlayerCollision = (ballPosition, ballVelocity, playerPaddle) => {
     const ballCircle = new Circle(ballPosition.x, ballPosition.y, ballRadius);
     const paddleRect = new Polygon(
-      new SAT.Vector(playerPaddle.left, playerPaddle.top), 
+      new SAT.Vector(playerPaddle.left, playerPaddle.top),
       [
-        new SAT.Vector(0, 0), 
-        new SAT.Vector(playerPaddle.width, 0), 
-        new SAT.Vector(playerPaddle.width, playerPaddle.height), 
-        new SAT.Vector(0, playerPaddle.height) 
+        new SAT.Vector(0, 0),
+        new SAT.Vector(playerPaddle.width, 0),
+        new SAT.Vector(playerPaddle.width, playerPaddle.height),
+        new SAT.Vector(0, playerPaddle.height),
       ]
     );
 
-    const response = new Response(); 
-    const collided = SAT.testCirclePolygon(ballCircle, paddleRect, response); 
+    const response = new Response();
+    const collided = SAT.testCirclePolygon(ballCircle, paddleRect, response);
 
     if (collided) {
       // Calculate new ball velocity based on collision response
-      // ... (Implement advanced collision physics using SAT.js)
+      const newDirection = reflectBall(direction, response.normal);
+      setDirection(newDirection);
+
+      // Apply spin and friction effects based on collision angle
+      const friction = Math.min(Math.abs(response.normal.x), Math.abs(response.normal.y));
+      setSpinX(spinX * (1 - friction * 0.5));
+      setSpinY(spinY * (1 - friction * 0.5));
+
+      // Optional: Play a collision sound effect
+      // ...
+
       return true;
     }
     return false;
+  };
+
+  const reflectBall = (direction, normal) => {
+    // Reflect the ball's direction based on the collision normal vector
+    const newX = direction.x - 2 * normal.x * direction.x;
+    const newY = direction.y - 2 * normal.y * direction.y;
+    return { x: newX, y: newY };
   };
 
   const sign = (x) => (x > 0 ? 1 : x < 0 ? -1 : 0);
@@ -75,6 +92,10 @@ const Ball = ({
         setTimeout(() => {
           setSpeed(speed / 1.5);
         }, powerUp.duration);
+        break;
+      case 'spinReverse':
+        setSpinX(-spinX);
+        setSpinY(-spinY);
         break;
       // Add more power-up types and effects here
       default:
@@ -118,10 +139,8 @@ const Ball = ({
       // Check for player collisions
       if (isPlayerCollision(position, { x: speed * direction.x, y: speed * direction.y }, player1Paddle)) {
         // Handle collision with player 1 paddle
-        // ... (Implement advanced collision physics and spin effects)
       } else if (isPlayerCollision(position, { x: speed * direction.x, y: speed * direction.y }, player2Paddle)) {
         // Handle collision with player 2 paddle
-        // ... (Implement advanced collision physics and spin effects)
       }
 
       // Apply power-ups if applicable
