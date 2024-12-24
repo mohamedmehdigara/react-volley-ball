@@ -16,15 +16,13 @@ const CourtContainer = styled.div`
 
 
 
-const Court = ({
-  courtWidth = 800,
-  courtHeight = 400,
-  netHeight = 243,
-  netWidth = 2,
-  onPlayerCollision,
-  outOfBounds,
-  player1Paddle, 
-  player2Paddle, 
+const Court = ({ 
+  courtWidth, 
+  courtHeight, 
+  netWidth, 
+  netHeight, 
+  onPlayerCollision, 
+  outOfBounds 
 }) => {
   const [ballProps, setBallProps] = useState({
     position: { top: 200, left: 400 },
@@ -36,6 +34,11 @@ const Court = ({
     netHeight,
   });
 
+  const [player1Position, setPlayer1Position] = useState({ top: 160, left: 50 });
+  const [player2Position, setPlayer2Position] = useState({ top: 160, left: 750 });
+
+  const [powerUps, setPowerUps] = useState([]);
+
   const Net = styled.div`
   width: 2px;
   height: 243px;
@@ -45,29 +48,40 @@ const Court = ({
   top: 0;
 `;
 
-  const [player1Position, setPlayer1Position] = useState({ top: 160, left: 50 });
-  const [player2Position, setPlayer2Position] = useState({ top: 160, left: 750 });
-
-  const [powerUps, setPowerUps] = useState([]);
-
   // ... (rest of the Court component)
 
   return (
     <CourtContainer>
       <Net />
-      <Ball {...ballProps} powerUps={powerUps} setPowerUps={setPowerUps} 
-            onPlayerCollision={onPlayerCollision} 
-            outOfBounds={outOfBounds} 
-            player1Paddle={player1Paddle} 
-            player2Paddle={player2Paddle} 
+      <Ball 
+        {...ballProps} 
+        powerUps={powerUps} 
+        setPowerUps={setPowerUps} 
+        onPlayerCollision={onPlayerCollision} 
+        outOfBounds={outOfBounds} 
+        player1Paddle={{ 
+          left: player1Position.left, 
+          top: player1Position.top, 
+          width: 20, 
+          height: 100 
+        }} 
+        player2Paddle={{ 
+          left: player2Position.left, 
+          top: player2Position.top, 
+          width: 20, 
+          height: 100 
+        }} 
       />
-      <Player position={player1Position} />
+      <Player position={player1Position} 
+              onPlayerMove={setPlayer1Position} 
+      /> 
       <AIOpponent 
         playerSide="player2" 
         courtHeight={courtHeight} 
         ballPosition={ballProps.position} 
         ballSpeed={ballProps.speed} 
         ballDirection={ballProps.direction} 
+        onPlayerMove={setPlayer2Position} 
       />
       {powerUps.map((powerUp, index) => (
         <PowerUp key={index} type={powerUp.type} position={powerUp.position} />
