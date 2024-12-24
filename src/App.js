@@ -78,7 +78,7 @@ function VolleyballGame() {
         isGameOver={isGameOver}
         winner={winner}
       />
-      <Court>
+      <Court courtWidth={courtWidth}>
         <Net />
         <Ball {...ballProps} powerUps={powerUps} setPowerUps={setPowerUps} />
         <Player position={player1Position} />

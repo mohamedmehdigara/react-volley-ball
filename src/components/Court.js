@@ -72,9 +72,7 @@ const Court = ({
           height: 100 
         }} 
       />
-      <Player position={player1Position} 
-              onPlayerMove={setPlayer1Position} 
-      /> 
+      <Player position={player1Position} onPlayerMove={setPlayer1Position} />
       <AIOpponent 
         playerSide="player2" 
         courtHeight={courtHeight} 
@@ -82,7 +80,8 @@ const Court = ({
         ballSpeed={ballProps.speed} 
         ballDirection={ballProps.direction} 
         onPlayerMove={setPlayer2Position} 
-      />
+        courtWidth={courtWidth} 
+      /> 
       {powerUps.map((powerUp, index) => (
         <PowerUp key={index} type={powerUp.type} position={powerUp.position} />
       ))}

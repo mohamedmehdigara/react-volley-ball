@@ -1,18 +1,26 @@
 import React, { useState, useEffect } from 'react';
 import styled from 'styled-components';
-import Paddle from './Paddle';
 
-const AIOpponent = ({ playerSide, courtHeight, ballPosition, ballSpeed, ballDirection }) => {
-  const [playerPosition, setPlayerPosition] = useState({ top: 160, left: 50 }); // Initial position
+const Paddle = styled.div`
+  position: absolute;
+  width: 20px;
+  height: 100px;
+  background-color: blue; 
+  top: ${(props) => props.top}px;
+  left: ${(props) => props.left}px;
+`;
+
+const AIOpponent = ({ playerSide, courtHeight, ballPosition, ballSpeed, ballDirection, onPlayerMove }) => {
+  const [playerPosition, setPlayerPosition] = useState({ top: 160, left: 750 }); 
 
   const paddleHeight = 100;
   const paddleSpeed = 5;
-  const courtWidth = 100;
+  const courtWidth = 50;
 
   const handleAIMovement = () => {
     // Predict ball's future position based on current speed and direction
     const predictedPosition = {
-      top: ballPosition.top + ballSpeed * ballDirection.y * 0.5, // Adjust prediction factor as needed
+      top: ballPosition.top + ballSpeed * ballDirection.y * 0.5, 
       left: ballPosition.left + ballSpeed * ballDirection.x * 0.5,
     };
 
@@ -21,7 +29,7 @@ const AIOpponent = ({ playerSide, courtHeight, ballPosition, ballSpeed, ballDire
 
     // Move the paddle towards the desired position, considering court boundaries
     const newTop = Math.max(0, Math.min(desiredTop, courtHeight - paddleHeight));
-    setPlayerPosition({ ...playerPosition, top: newTop });
+    onPlayerMove({ ...playerPosition, top: newTop }); 
   };
 
   useEffect(() => {
@@ -29,10 +37,10 @@ const AIOpponent = ({ playerSide, courtHeight, ballPosition, ballSpeed, ballDire
   }, [ballPosition, ballSpeed, ballDirection]);
 
   return (
-    <Paddle
-      top={playerPosition.top}
-      left={playerSide === 'player1' ? 10 : courtWidth - 30}
-      height={paddleHeight}
+    <Paddle 
+      top={playerPosition.top} 
+      left={playerSide === 'player1' ? 10 : courtWidth - 30} 
+      height={paddleHeight} 
     />
   );
 };
