@@ -24,7 +24,7 @@ const AIOpponent = ({
 
   const paddleHeight = 100;
   const paddleSpeed = 5;
-  const courtWidth = 80;
+  const courtWidth = 800;
 
   const handleAIMovement = () => {
     // Predict ball's future position based on current speed and direction
