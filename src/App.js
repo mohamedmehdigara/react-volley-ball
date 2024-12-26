@@ -3,6 +3,9 @@ import styled from 'styled-components';
 
 import Court from './components/Court';
 import Scoreboard from './components/Scoreboard'; 
+import Player from './components/Player'; 
+import AIOpponent from './components/AIOpponent'; 
+import Ball from './components/Ball'; // Import the Ball component
 
 const GameContainer = styled.div`
   display: flex;
@@ -58,7 +61,17 @@ function VolleyballGame() {
         netHeight={netHeight} 
         onPlayerCollision={handlePlayerCollision} 
         outOfBounds={handleOutOfBounds} 
-      /> 
+      >
+        <Player /> 
+        <AIOpponent /> 
+        {/* Render the Ball component within Court */}
+        <Ball 
+          courtWidth={courtWidth} 
+          courtHeight={courtHeight} 
+          netWidth={netWidth} 
+          netHeight={netHeight} 
+        /> 
+      </Court> 
     </GameContainer>
   );
 }
