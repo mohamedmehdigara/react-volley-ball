@@ -20,6 +20,16 @@ const Ball = ({
   powerUps,
   setPowerUps,
 }) => {
+  const Ball = styled.div`
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background-color: red; 
+  position: absolute; 
+  top: ${(props) => props.top}px;
+  left: ${(props) => props.left}px; 
+`;
+
   const [position, setPosition] = useState(initialPosition);
   const [speed, setSpeed] = useState(initialSpeed);
   const [direction, setDirection] = useState(initialDirection);
