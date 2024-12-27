@@ -5,7 +5,7 @@ import Court from './components/Court';
 import Scoreboard from './components/Scoreboard'; 
 import Player from './components/Player'; 
 import AIOpponent from './components/AIOpponent'; 
-import Ball from './components/Ball'; // Import the Ball component
+import Ball from './components/Ball'; 
 
 const GameContainer = styled.div`
   display: flex;
@@ -22,9 +22,10 @@ function VolleyballGame() {
   const netWidth = 2;
 
   const [score, setScore] = useState({ player1: 0, player2: 0 });
+  const [prevScore, setprevScore] = useState({ player1: 0, player2: 0 });
+
   const [isGameOver, setIsGameOver] = useState(false);
   const [winner, setWinner] = useState('');
-  const [prevScore, setPrevScore] = useState();
 
   const updateScore = (player) => {
     setScore((prevScore) => ({ 
@@ -64,7 +65,6 @@ function VolleyballGame() {
       >
         <Player /> 
         <AIOpponent /> 
-        {/* Render the Ball component within Court */}
         <Ball 
           courtWidth={courtWidth} 
           courtHeight={courtHeight} 
