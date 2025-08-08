@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import styled from 'styled-components';
-import { Circle, Polygon, Vector, Response, SAT } from 'sat'; 
+import SAT from 'sat'; // Correctly import the SAT object
 
 const Ball = ({
   initialPosition = { top: 200, left: 400 },
@@ -12,92 +12,102 @@ const Ball = ({
   netHeight,
   onPlayerCollision,
   outOfBounds,
-  player1Paddle, 
-  player2Paddle, 
+  player1Paddle,
+  player2Paddle,
+  onBallUpdate,
+  paddleHeight,
 }) => {
   const [position, setPosition] = useState(initialPosition);
   const [speed, setSpeed] = useState(initialSpeed);
   const [direction, setDirection] = useState(initialDirection);
   const [spinX, setSpinX] = useState(0); 
   const [spinY, setSpinY] = useState(0);
+  const [gravity, setGravity] = useState(0.5); 
+  const [airResistance, setAirResistance] = useState(0.01);
 
   const ballRadius = 10;
 
   const isPlayerCollision = (ballPosition, ballVelocity, playerPaddle) => {
-    const ballCircle = new Circle(ballPosition.x, ballPosition.y, ballRadius);
-
-    if (!playerPaddle) { 
-      console.error("playerPaddle is undefined in isPlayerCollision");
-      return false; 
+    const ballCircle = new SAT.Circle(new SAT.Vector(ballPosition.left, ballPosition.top), ballRadius);
+    
+    if (!playerPaddle) {
+      return false;
     }
 
-    const paddleRect = new Polygon(
-      new SAT.Vector(playerPaddle.left, playerPaddle.top), 
+    const paddleRect = new SAT.Polygon(
+      new SAT.Vector(playerPaddle.left, playerPaddle.top),
       [
-        new SAT.Vector(0, 0), 
-        new SAT.Vector(playerPaddle.width, 0), 
-        new SAT.Vector(playerPaddle.width, playerPaddle.height), 
-        new SAT.Vector(0, playerPaddle.height), 
+        new SAT.Vector(0, 0),
+        new SAT.Vector(playerPaddle.width, 0),
+        new SAT.Vector(playerPaddle.width, playerPaddle.height),
+        new SAT.Vector(0, playerPaddle.height),
       ]
     );
 
-    const response = new Response(); 
-    const collided = SAT.testCirclePolygon(ballCircle, paddleRect, response); 
+    const response = new SAT.Response();
+    const collided = SAT.testCirclePolygon(ballCircle, paddleRect, response);
 
     if (collided) {
-      // Calculate new ball velocity based on collision response
-      const v = response.overlapV.clone().normalize(); 
-      const newDirection = { x: v.x, y: v.y }; 
-      setDirection(newDirection); 
+      const normal = response.overlapV.clone().normalize();
+      const dot = ballVelocity.x * normal.x + ballVelocity.y * normal.y;
+      
+      const newDirection = {
+        x: ballVelocity.x - 2 * dot * normal.x,
+        y: ballVelocity.y - 2 * dot * normal.y,
+      };
 
-      // Apply some simple spin (adjust as needed)
-      const spinFactor = 0.5; // Adjust this value to control the amount of spin
-      setSpinX(v.y * spinFactor);
-      setSpinY(-v.x * spinFactor);
+      const paddleCenter = playerPaddle.top + playerPaddle.height / 2;
+      const hitPoint = ballPosition.top - paddleCenter;
+      setSpinX(hitPoint / (paddleHeight / 2) * 2); 
 
-      onPlayerCollision(); 
+      setDirection({
+        x: newDirection.x,
+        y: newDirection.y + gravity,
+      });
+
+      onPlayerCollision();
       return true;
     }
     return false;
   };
 
   const animateBall = () => {
-    const newTop = position.top + speed * direction.y + spinY; 
-    const newLeft = position.left + speed * direction.x + spinX;
+    let newDirection = {
+      x: direction.x,
+      y: direction.y + gravity / 10,
+    };
+    
+    let newSpeed = speed * (1 - airResistance);
 
-    // Check for collisions with court boundaries
+    const newTop = position.top + newSpeed * newDirection.y + spinY;
+    const newLeft = position.left + newSpeed * newDirection.x + spinX;
+
     if (newTop - ballRadius <= 0 || newTop + ballRadius >= courtHeight) {
-      setDirection({ ...direction, y: -direction.y }); 
-      setSpinY(-spinY); // Reverse spin on wall collision
-    } else if (newLeft - ballRadius <= 0 || newLeft + ballRadius >= courtWidth) { 
-      outOfBounds(newLeft < courtWidth / 2 ? 'player2' : 'player1'); 
-      return; // Stop animation on out of bounds
+      newDirection.y = -newDirection.y;
+    } else if (newLeft - ballRadius <= 0 || newLeft + ballRadius >= courtWidth) {
+      outOfBounds(newLeft < courtWidth / 2 ? 'player2' : 'player1');
+      return;
     }
 
-    // Check for collisions with the net
-    if (newLeft >= courtWidth / 2 - netWidth / 2 && newLeft <= courtWidth / 2 + netWidth / 2 && newTop >= 0 && newTop <= netHeight) {
-      setDirection({ ...direction, x: -direction.x }); // Simple net collision handling
-      setSpinX(-spinX); // Reverse spin on net collision
+    if (isPlayerCollision(position, { x: newSpeed * newDirection.x, y: newSpeed * newDirection.y }, player1Paddle) || 
+        isPlayerCollision(position, { x: newSpeed * newDirection.x, y: newSpeed * newDirection.y }, player2Paddle)) {
     }
 
-    // Check for player collisions
-    if (isPlayerCollision(position, { x: speed * direction.x, y: speed * direction.y }, player1Paddle)) {
-      // Handle collision with player 1 paddle 
-    } else if (isPlayerCollision(position, { x: speed * direction.x, y: speed * direction.y }, player2Paddle)) {
-      // Handle collision with player 2 paddle
-    }
-
-    setPosition({ top: newTop, left: newLeft });
-
+    onBallUpdate({
+      position: { top: newTop, left: newLeft },
+      speed: newSpeed,
+      direction: newDirection,
+    });
+    
     requestAnimationFrame(animateBall);
   };
 
   useEffect(() => {
     const animationFrame = requestAnimationFrame(animateBall);
     return () => cancelAnimationFrame(animationFrame);
-  }, [position, speed, direction, spinX, spinY, courtWidth, courtHeight, netWidth, netHeight]); 
+  }, [position, speed, direction, spinX, spinY, courtWidth, courtHeight, netWidth, netHeight, paddleHeight]);
 
-  const Ball = styled.div`
+  const BallDiv = styled.div`
     width: 20px;
     height: 20px;
     border-radius: 50%;
@@ -107,7 +117,7 @@ const Ball = ({
     left: ${(props) => props.left}px;
   `;
 
-  return <Ball top={position.top} left={position.left} />;
+  return <BallDiv top={position.top} left={position.left} />;
 };
 
 export default Ball;
