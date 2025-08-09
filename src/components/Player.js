@@ -2,32 +2,31 @@ import React, { useState, useEffect } from 'react';
 import styled from 'styled-components';
 
 const Paddle = styled.div`
-  position: absolute;
   width: 20px;
   height: 100px;
   background-color: blue;
+  position: absolute;
   top: ${(props) => props.top}px;
-  left: ${(props) => props.left}px;
+  left: 50px;
 `;
 
-const Player = ({ position, onPlayerMove }) => {
-  const handleKeyDown = (event) => {
-    const paddleSpeed = 5; 
-    if (event.key === 'w') {
-      onPlayerMove({ top: Math.max(position.top - paddleSpeed, 0), left: position.left });
-    } else if (event.key === 's') {
-      onPlayerMove({ top: Math.min(position.top + paddleSpeed, 400 - 100), left: position.left }); 
-    }
-  };
+const Player = ({ courtHeight, onPlayerMove, paddleHeight }) => {
+  const speed = 15; // Increased speed for more responsive control
 
   useEffect(() => {
-    document.addEventListener('keydown', handleKeyDown);
-    return () => {
-      document.removeEventListener('keydown', handleKeyDown);
+    const handleKeyDown = (event) => {
+      if (event.key === 'ArrowUp') {
+        onPlayerMove(prevPos => Math.max(0, prevPos - speed));
+      } else if (event.key === 'ArrowDown') {
+        onPlayerMove(prevPos => Math.min(courtHeight - paddleHeight, prevPos + speed));
+      }
     };
-  }, []);
 
-  return <Paddle top={position.top} left={position.left} />;
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [onPlayerMove, courtHeight, paddleHeight, speed]);
+
+  return <Paddle top={courtHeight / 2 - paddleHeight / 2} />; // Initial position
 };
 
 export default Player;

@@ -3,7 +3,7 @@ import styled from 'styled-components';
 import SAT from 'sat';
 
 const Ball = ({
-  initialPosition,
+  initialPosition = { top: 200, left: 400 },
   initialSpeed,
   initialDirection,
   courtWidth,
@@ -27,6 +27,7 @@ const Ball = ({
   const [spinY, setSpinY] = useState(0);
   const [gravity, setGravity] = useState(0.5); 
   const [airResistance, setAirResistance] = useState(0.01);
+  const [bounciness, setBounciness] = useState(1); 
 
   const ballRadius = 10;
 
@@ -55,8 +56,8 @@ const Ball = ({
       const dot = ballVelocity.x * normal.x + ballVelocity.y * normal.y;
       
       const newDirection = {
-        x: ballVelocity.x - 2 * dot * normal.x,
-        y: ballVelocity.y - 2 * dot * normal.y,
+        x: ballVelocity.x - 2 * dot * normal.x * bounciness,
+        y: ballVelocity.y - 2 * dot * normal.y * bounciness,
       };
 
       const paddleCenter = playerPaddle.top + playerPaddle.height / 2;

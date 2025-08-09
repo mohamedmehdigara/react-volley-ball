@@ -2,11 +2,11 @@ import React, { useState, useEffect, useRef } from 'react';
 import styled from 'styled-components';
 
 import Court from './components/Court';
-import Scoreboard from './components/Scoreboard';
-import Player from './components/Player';
-import AIOpponent from './components/AIOpponent';
-import Ball from './components/Ball';
-import Net from './components/Net';
+import Scoreboard from './components/Scoreboard'; 
+import Player from './components/Player'; 
+import AIOpponent from './components/AIOpponent'; 
+import Ball from './components/Ball'; 
+import Net from './components/Net'; 
 import PowerUp from './components/PowerUp';
 
 const GameContainer = styled.div`
@@ -42,7 +42,6 @@ const VolleyballGame = () => {
   });
   const [powerUpState, setPowerUpState] = useState(null);
 
-  // A ref to store active power-up effects (e.g., speed boost)
   const powerUpEffects = useRef({
     player1Speed: 0,
     player2Speed: 0,
@@ -85,7 +84,7 @@ const VolleyballGame = () => {
   const applyPowerUpEffect = (type, player) => {
     switch (type) {
       case 'speed':
-        powerUpEffects.current.ballSpeed = 5; // Temporarily boost ball speed
+        powerUpEffects.current.ballSpeed = 5;
         setTimeout(() => {
           powerUpEffects.current.ballSpeed = 0;
         }, 5000);
@@ -102,7 +101,7 @@ const VolleyballGame = () => {
         }, 5000);
         break;
       case 'slow':
-        powerUpEffects.current.ballSpeed = -3; // Temporarily slow down ball
+        powerUpEffects.current.ballSpeed = -3;
         setTimeout(() => {
           powerUpEffects.current.ballSpeed = 0;
         }, 5000);
@@ -112,7 +111,6 @@ const VolleyballGame = () => {
     }
   };
 
-  // The main game loop
   useEffect(() => {
     if (isGameOver) return;
 
@@ -127,17 +125,8 @@ const VolleyballGame = () => {
         setPowerUpState({ type: randomType, position: randomPosition });
       }
     }, powerUpInterval);
-
-    const gameLoop = () => {
-      // Logic for ball movement, paddle AI, and collisions would go here
-      // This is the core of the game loop
-      requestAnimationFrame(gameLoop);
-    };
-
-    requestAnimationFrame(gameLoop);
-
+    
     return () => {
-      cancelAnimationFrame(gameLoop);
       clearInterval(spawnTimer);
     };
   }, [isGameOver, courtWidth, courtHeight, powerUpState]);
@@ -150,9 +139,9 @@ const VolleyballGame = () => {
         isGameOver={isGameOver}
         winner={winner}
       />
-      <Court
-        courtWidth={courtWidth}
-        courtHeight={courtHeight}
+      <Court 
+        courtWidth={courtWidth} 
+        courtHeight={courtHeight} 
       >
         <Net
           courtWidth={courtWidth}
@@ -164,23 +153,23 @@ const VolleyballGame = () => {
           onPlayerMove={setPlayer1Position}
           courtHeight={courtHeight}
           paddleHeight={powerUpEffects.current.paddle1Height}
-        />
+        /> 
         <AIOpponent
           position={player2Position}
           onPlayerMove={setPlayer2Position}
           courtHeight={courtHeight}
           paddleHeight={powerUpEffects.current.paddle2Height}
           ballPosition={ballState.position}
-        />
+        /> 
         <Ball
           initialPosition={ballState.position}
           initialSpeed={ballState.speed + powerUpEffects.current.ballSpeed}
           initialDirection={ballState.direction}
-          courtWidth={courtWidth}
-          courtHeight={courtHeight}
-          netWidth={netWidth}
+          courtWidth={courtWidth} 
+          courtHeight={courtHeight} 
+          netWidth={netWidth} 
           netHeight={netHeight}
-          paddleHeight={paddleHeight}
+          paddleHeight={paddleHeight} 
           player1Paddle={{ top: player1Position, left: 50, width: paddleWidth, height: powerUpEffects.current.paddle1Height }}
           player2Paddle={{ top: player2Position, left: 750, width: paddleWidth, height: powerUpEffects.current.paddle2Height }}
           outOfBounds={handleOutOfBounds}
@@ -192,7 +181,7 @@ const VolleyballGame = () => {
         {powerUpState && (
           <PowerUp type={powerUpState.type} position={powerUpState.position} />
         )}
-      </Court>
+      </Court> 
     </GameContainer>
   );
 };
