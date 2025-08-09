@@ -1,11 +1,11 @@
 import React, { useState, useEffect, useRef } from 'react';
 import styled from 'styled-components';
-import SAT from 'sat'; // Correctly import the SAT object
+import SAT from 'sat';
 
 const Ball = ({
-  initialPosition = { top: 200, left: 400 },
-  initialSpeed = 5,
-  initialDirection = { x: 1, y: 1 },
+  initialPosition,
+  initialSpeed,
+  initialDirection,
   courtWidth,
   courtHeight,
   netWidth,
@@ -16,6 +16,9 @@ const Ball = ({
   player2Paddle,
   onBallUpdate,
   paddleHeight,
+  powerUpState,
+  setPowerUpState,
+  applyPowerUpEffect,
 }) => {
   const [position, setPosition] = useState(initialPosition);
   const [speed, setSpeed] = useState(initialSpeed);
@@ -71,6 +74,24 @@ const Ball = ({
     return false;
   };
 
+  const isPowerUpCollision = (ballPosition) => {
+    if (!powerUpState) return false;
+
+    const ballCircle = new SAT.Circle(new SAT.Vector(ballPosition.left, ballPosition.top), ballRadius);
+    const powerUpCircle = new SAT.Circle(new SAT.Vector(powerUpState.position.left + 15, powerUpState.position.top + 15), 15);
+
+    const response = new SAT.Response();
+    const collided = SAT.testCircleCircle(ballCircle, powerUpCircle, response);
+
+    if (collided) {
+      const player = ballPosition.left < courtWidth / 2 ? 'player1' : 'player2';
+      applyPowerUpEffect(powerUpState.type, player);
+      setPowerUpState(null);
+      return true;
+    }
+    return false;
+  };
+
   const animateBall = () => {
     let newDirection = {
       x: direction.x,
@@ -93,6 +114,8 @@ const Ball = ({
         isPlayerCollision(position, { x: newSpeed * newDirection.x, y: newSpeed * newDirection.y }, player2Paddle)) {
     }
 
+    isPowerUpCollision(position);
+
     onBallUpdate({
       position: { top: newTop, left: newLeft },
       speed: newSpeed,
@@ -105,7 +128,7 @@ const Ball = ({
   useEffect(() => {
     const animationFrame = requestAnimationFrame(animateBall);
     return () => cancelAnimationFrame(animationFrame);
-  }, [position, speed, direction, spinX, spinY, courtWidth, courtHeight, netWidth, netHeight, paddleHeight]);
+  }, [position, speed, direction, spinX, spinY, courtWidth, courtHeight, netWidth, netHeight, paddleHeight, powerUpState]);
 
   const BallDiv = styled.div`
     width: 20px;
