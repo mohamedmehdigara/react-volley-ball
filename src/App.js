@@ -2,11 +2,11 @@ import React, { useState, useEffect, useRef } from 'react';
 import styled from 'styled-components';
 
 import Court from './components/Court';
-import Scoreboard from './components/Scoreboard'; 
-import Player from './components/Player'; 
-import AIOpponent from './components/AIOpponent'; 
-import Ball from './components/Ball'; 
-import Net from './components/Net'; 
+import Scoreboard from './components/Scoreboard';
+import Player from './components/Player';
+import AIOpponent from './components/AIOpponent';
+import Ball from './components/Ball';
+import Net from './components/Net';
 import PowerUp from './components/PowerUp';
 
 const GameContainer = styled.div`
@@ -18,6 +18,33 @@ const GameContainer = styled.div`
   background-color: #e0e0e0;
 `;
 
+const GameOverScreen = styled.div`
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  background-color: rgba(0, 0, 0, 0.7);
+  color: white;
+  padding: 40px;
+  border-radius: 10px;
+  text-align: center;
+  z-index: 100;
+`;
+
+const RestartButton = styled.button`
+  padding: 10px 20px;
+  font-size: 1.2rem;
+  margin-top: 20px;
+  cursor: pointer;
+  background-color: #4caf50;
+  color: white;
+  border: none;
+  border-radius: 5px;
+  &:hover {
+    background-color: #45a049;
+  }
+`;
+
 const VolleyballGame = () => {
   const courtWidth = 800;
   const courtHeight = 400;
@@ -25,7 +52,7 @@ const VolleyballGame = () => {
   const netHeight = 243;
   const paddleWidth = 20;
   const paddleHeight = 100;
-  const powerUpInterval = 10000; // 10 seconds
+  const powerUpInterval = 10000;
 
   const [score, setScore] = useState({ player1: 0, player2: 0 });
   const [isGameOver, setIsGameOver] = useState(false);
@@ -55,7 +82,7 @@ const VolleyballGame = () => {
       const newScore = { ...prevScore, [player]: prevScore[player] + 1 };
       if (newScore[player] >= 11) {
         setIsGameOver(true);
-        setWinner(player);
+        setWinner(player === 'player1' ? 'Player 1' : 'AI Opponent');
       }
       return newScore;
     });
@@ -72,6 +99,29 @@ const VolleyballGame = () => {
     });
     setPlayer1Position(courtHeight / 2 - paddleHeight / 2);
     setPlayer2Position(courtHeight / 2 - paddleHeight / 2);
+    powerUpEffects.current = {
+      player1Speed: 0,
+      player2Speed: 0,
+      ballSpeed: 0,
+      paddle1Height: paddleHeight,
+      paddle2Height: paddleHeight,
+    };
+  };
+
+  const handleRestart = () => {
+    setScore({ player1: 0, player2: 0 });
+    setIsGameOver(false);
+    setWinner('');
+    setBallState({
+      position: { top: 200, left: 400 },
+      speed: 5,
+      direction: { x: 1, y: 1 },
+      spinX: 0,
+      spinY: 0,
+    });
+    setPlayer1Position(courtHeight / 2 - paddleHeight / 2);
+    setPlayer2Position(courtHeight / 2 - paddleHeight / 2);
+    setPowerUpState(null);
     powerUpEffects.current = {
       player1Speed: 0,
       player2Speed: 0,
@@ -129,7 +179,7 @@ const VolleyballGame = () => {
     return () => {
       clearInterval(spawnTimer);
     };
-  }, [isGameOver, courtWidth, courtHeight, powerUpState]);
+  }, [isGameOver, courtWidth, courtHeight, powerUpState, powerUpInterval]);
 
   return (
     <GameContainer>
@@ -139,9 +189,9 @@ const VolleyballGame = () => {
         isGameOver={isGameOver}
         winner={winner}
       />
-      <Court 
-        courtWidth={courtWidth} 
-        courtHeight={courtHeight} 
+      <Court
+        courtWidth={courtWidth}
+        courtHeight={courtHeight}
       >
         <Net
           courtWidth={courtWidth}
@@ -153,23 +203,23 @@ const VolleyballGame = () => {
           onPlayerMove={setPlayer1Position}
           courtHeight={courtHeight}
           paddleHeight={powerUpEffects.current.paddle1Height}
-        /> 
+        />
         <AIOpponent
           position={player2Position}
           onPlayerMove={setPlayer2Position}
           courtHeight={courtHeight}
           paddleHeight={powerUpEffects.current.paddle2Height}
           ballPosition={ballState.position}
-        /> 
+        />
         <Ball
           initialPosition={ballState.position}
           initialSpeed={ballState.speed + powerUpEffects.current.ballSpeed}
           initialDirection={ballState.direction}
-          courtWidth={courtWidth} 
-          courtHeight={courtHeight} 
-          netWidth={netWidth} 
+          courtWidth={courtWidth}
+          courtHeight={courtHeight}
+          netWidth={netWidth}
           netHeight={netHeight}
-          paddleHeight={paddleHeight} 
+          paddleHeight={paddleHeight}
           player1Paddle={{ top: player1Position, left: 50, width: paddleWidth, height: powerUpEffects.current.paddle1Height }}
           player2Paddle={{ top: player2Position, left: 750, width: paddleWidth, height: powerUpEffects.current.paddle2Height }}
           outOfBounds={handleOutOfBounds}
@@ -181,7 +231,14 @@ const VolleyballGame = () => {
         {powerUpState && (
           <PowerUp type={powerUpState.type} position={powerUpState.position} />
         )}
-      </Court> 
+      </Court>
+      {isGameOver && (
+        <GameOverScreen>
+          <h2>Game Over!</h2>
+          <h3>{winner} wins!</h3>
+          <RestartButton onClick={handleRestart}>Play Again</RestartButton>
+        </GameOverScreen>
+      )}
     </GameContainer>
   );
 };
