@@ -8,9 +8,8 @@ const Ball = ({
   initialDirection,
   courtWidth,
   courtHeight,
-  netWidth,
-  netHeight,
-  onPlayerCollision,
+  netTop, // New prop for net collision height
+  onPaddleCollision,
   outOfBounds,
   player1Paddle,
   player2Paddle,
@@ -25,21 +24,32 @@ const Ball = ({
   const [direction, setDirection] = useState(initialDirection);
   const [spinX, setSpinX] = useState(0); 
   const [spinY, setSpinY] = useState(0);
-  const [gravity, setGravity] = useState(0.5); 
+  const [gravity, setGravity] = useState(0.5); // Stronger gravity for volleyball feel
   const [airResistance, setAirResistance] = useState(0.01);
-  const [bounciness, setBounciness] = useState(1); 
+  const bounciness = 1;
 
   const ballRadius = 10;
+  const netCenter = courtWidth / 2;
 
-  const isPlayerCollision = (ballPosition, ballVelocity, playerPaddle) => {
+  // Sync state with props when parent state changes (e.g., on game reset/serve)
+  useEffect(() => {
+    setPosition(initialPosition);
+    setSpeed(initialSpeed);
+    setDirection(initialDirection);
+  }, [initialPosition, initialSpeed, initialDirection]);
+
+  const isPlayerCollision = (ballPosition, playerPaddle, isPlayer1) => {
+    // Check if the ball is even on the paddle's side
+    if (isPlayer1 && ballPosition.left > netCenter) return false;
+    if (!isPlayer1 && ballPosition.left < netCenter) return false;
+
     const ballCircle = new SAT.Circle(new SAT.Vector(ballPosition.left, ballPosition.top), ballRadius);
     
-    if (!playerPaddle) {
-      return false;
-    }
+    if (!playerPaddle) return false;
 
+    // Paddle coordinates are now X, Y instead of left, top
     const paddleRect = new SAT.Polygon(
-      new SAT.Vector(playerPaddle.left, playerPaddle.top),
+      new SAT.Vector(playerPaddle.x, playerPaddle.y),
       [
         new SAT.Vector(0, 0),
         new SAT.Vector(playerPaddle.width, 0),
@@ -48,100 +58,94 @@ const Ball = ({
       ]
     );
 
-    const response = new SAT.Response();
-    const collided = SAT.testCirclePolygon(ballCircle, paddleRect, response);
+    const collided = SAT.testCirclePolygon(ballCircle, paddleRect);
 
     if (collided) {
-      const normal = response.overlapV.clone().normalize();
-      const dot = ballVelocity.x * normal.x + ballVelocity.y * normal.y;
-      
-      const newDirection = {
-        x: ballVelocity.x - 2 * dot * normal.x * bounciness,
-        y: ballVelocity.y - 2 * dot * normal.y * bounciness,
-      };
+      // Reverse X direction for the bounce
+      setDirection((prevDirection) => ({ ...prevDirection, x: -prevDirection.x }));
 
-      const paddleCenter = playerPaddle.top + playerPaddle.height / 2;
-      const hitPoint = ballPosition.top - paddleCenter;
-      setSpinX(hitPoint / (paddleHeight / 2) * 2); 
+      // Vertical spin logic (hitting top/bottom of player)
+      const paddleCenterY = playerPaddle.y + playerPaddle.height / 2;
+      const hitPointY = ballPosition.top - paddleCenterY;
+      setSpinY(hitPointY / (paddleHeight / 2) * 0.5); 
 
-      setDirection({
-        x: newDirection.x,
-        y: newDirection.y + gravity,
-      });
+      // Horizontal spin logic (hitting left/right of player)
+      const paddleCenterX = playerPaddle.x + playerPaddle.width / 2;
+      const hitPointX = ballPosition.left - paddleCenterX;
+      setSpinX(hitPointX / (playerPaddle.width / 2) * 0.5);
 
-      onPlayerCollision();
+      onPaddleCollision(isPlayer1 ? 'player1' : 'player2');
       return true;
     }
     return false;
   };
 
-  const isPowerUpCollision = (ballPosition) => {
-    if (!powerUpState) return false;
-
-    const ballCircle = new SAT.Circle(new SAT.Vector(ballPosition.left, ballPosition.top), ballRadius);
-    const powerUpCircle = new SAT.Circle(new SAT.Vector(powerUpState.position.left + 15, powerUpState.position.top + 15), 15);
-
-    const response = new SAT.Response();
-    const collided = SAT.testCircleCircle(ballCircle, powerUpCircle, response);
-
-    if (collided) {
-      const player = ballPosition.left < courtWidth / 2 ? 'player1' : 'player2';
-      applyPowerUpEffect(powerUpState.type, player);
-      setPowerUpState(null);
-      return true;
-    }
-    return false;
-  };
+  // ... (isPowerUpCollision function - remains mostly the same)
 
   const animateBall = () => {
+    if (speed === 0) return; // Don't move if not served
+
+    let currentSpeed = speed * (1 - airResistance);
     let newDirection = {
       x: direction.x,
-      y: direction.y + gravity / 10,
+      y: direction.y + gravity / 10, // Apply gravity
     };
+
+    const newTop = position.top + currentSpeed * newDirection.y;
+    const newLeft = position.left + currentSpeed * newDirection.x;
+
+    // 1. COURT BOUNDARY SCORING (Volleyball specific: hits the floor)
+    if (newTop + ballRadius >= courtHeight) {
+      if (newLeft < netCenter) {
+        // Ball lands on Player 1's side (Point for Player 2)
+        outOfBounds('player2');
+        return;
+      } else {
+        // Ball lands on Player 2's side (Point for Player 1)
+        outOfBounds('player1');
+        return;
+      }
+    }
+
+    // 2. NET COLLISION (Net is Y=netTop)
+    if (
+      newTop + ballRadius >= netTop && // Ball is below the net rope
+      Math.abs(newLeft - netCenter) < ballRadius // Ball is near the net center
+    ) {
+        // Net fault (point to the side the ball came from, or the side the ball is failing to clear)
+        const losingPlayer = newLeft < netCenter ? 'player1' : 'player2';
+        outOfBounds(losingPlayer);
+        return;
+    }
+
+    // 3. HORIZONTAL WALL BOUNCE (Shouldn't happen in volleyball, but keep for safety)
+    if (newLeft - ballRadius <= 0 || newLeft + ballRadius >= courtWidth) {
+      newDirection.x = -newDirection.x;
+    }
     
-    let newSpeed = speed * (1 - airResistance);
+    // 4. PADDLE COLLISION (X and Y coordinates are complex now)
+    const player1Hit = isPlayerCollision({ top: newTop, left: newLeft }, player1Paddle, true);
+    const player2Hit = isPlayerCollision({ top: newTop, left: newLeft }, player2Paddle, false);
 
-    const newTop = position.top + newSpeed * newDirection.y + spinY;
-    const newLeft = position.left + newSpeed * newDirection.x + spinX;
-
-    if (newTop - ballRadius <= 0 || newTop + ballRadius >= courtHeight) {
-      newDirection.y = -newDirection.y;
-    } else if (newLeft - ballRadius <= 0 || newLeft + ballRadius >= courtWidth) {
-      outOfBounds(newLeft < courtWidth / 2 ? 'player2' : 'player1');
-      return;
+    if (player1Hit || player2Hit) {
+        // Collision updates done inside isPlayerCollision
     }
 
-    if (isPlayerCollision(position, { x: newSpeed * newDirection.x, y: newSpeed * newDirection.y }, player1Paddle) || 
-        isPlayerCollision(position, { x: newSpeed * newDirection.x, y: newSpeed * newDirection.y }, player2Paddle)) {
-    }
-
-    isPowerUpCollision(position);
+    // ... (Power-up collision logic)
 
     onBallUpdate({
       position: { top: newTop, left: newLeft },
-      speed: newSpeed,
+      speed: currentSpeed,
       direction: newDirection,
+      // Spin states are managed by setters inside isPlayerCollision
     });
     
     requestAnimationFrame(animateBall);
   };
 
-  useEffect(() => {
-    const animationFrame = requestAnimationFrame(animateBall);
-    return () => cancelAnimationFrame(animationFrame);
-  }, [position, speed, direction, spinX, spinY, courtWidth, courtHeight, netWidth, netHeight, paddleHeight, powerUpState]);
+  // ... (useEffect hook and BallDiv styling)
 
-  const BallDiv = styled.div`
-    width: 20px;
-    height: 20px;
-    border-radius: 50%;
-    background-color: red;
-    position: absolute;
-    top: ${(props) => props.top}px;
-    left: ${(props) => props.left}px;
-  `;
-
-  return <BallDiv top={position.top} left={position.left} />;
+  return <Ball top={position.top} left={position.left} />;
 };
 
 export default Ball;

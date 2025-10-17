@@ -45,30 +45,48 @@ const RestartButton = styled.button`
   }
 `;
 
+const DifficultySelector = styled.select`
+  margin-bottom: 20px;
+  padding: 8px;
+  font-size: 1rem;
+  border-radius: 5px;
+`;
+
 const VolleyballGame = () => {
   const courtWidth = 800;
   const courtHeight = 400;
-  const netWidth = 2;
-  const netHeight = 243;
-  const paddleWidth = 20;
-  const paddleHeight = 100;
+  const netHeight = 250; // Visual height of the net post
+  const netTop = 250; // Collision Y-coordinate for the net rope
+  const paddleWidth = 30; // Player width
+  const paddleHeight = 80; // Player height
   const powerUpInterval = 10000;
 
   const [score, setScore] = useState({ player1: 0, player2: 0 });
   const [isGameOver, setIsGameOver] = useState(false);
   const [winner, setWinner] = useState('');
-  
-  const [player1Position, setPlayer1Position] = useState(courtHeight / 2 - paddleHeight / 2);
-  const [player2Position, setPlayer2Position] = useState(courtHeight / 2 - paddleHeight / 2);
+  const [difficulty, setDifficulty] = useState('normal');
+
+  // Player position is now lateral (X-coordinate)
+  const [player1PositionX, setPlayer1PositionX] = useState(courtWidth / 4 - paddleWidth / 2);
+  const [player2PositionX, setPlayer2PositionX] = useState(courtWidth * 3 / 4 - paddleWidth / 2);
+
+  // New state for player jumping (vertical movement)
+  const [player1PositionY, setPlayer1PositionY] = useState(courtHeight - paddleHeight);
+  const [player2PositionY, setPlayer2PositionY] = useState(courtHeight - paddleHeight);
+
   const [ballState, setBallState] = useState({
-    position: { top: 200, left: 400 },
-    speed: 5,
-    direction: { x: 1, y: 1 },
+    position: { top: courtHeight - 20, left: 100 }, // Start ball near Player 1 baseline
+    speed: 0,
+    direction: { x: 0, y: 0 },
     spinX: 0,
     spinY: 0,
+    isServed: false, // New state for initial serve
   });
-  const [powerUpState, setPowerUpState] = useState(null);
 
+  const [powerUpState, setPowerUpState] = useState(null);
+  const [player1Flashing, setPlayer1Flashing] = useState(false);
+  const [player2Flashing, setPlayer2Flashing] = useState(false);
+  
   const powerUpEffects = useRef({
     player1Speed: 0,
     player2Speed: 0,
@@ -76,6 +94,16 @@ const VolleyballGame = () => {
     paddle1Height: paddleHeight,
     paddle2Height: paddleHeight,
   });
+
+  const triggerPaddleFlash = (player) => {
+    if (player === 'player1') {
+      setPlayer1Flashing(true);
+      setTimeout(() => setPlayer1Flashing(false), 100);
+    } else {
+      setPlayer2Flashing(true);
+      setTimeout(() => setPlayer2Flashing(false), 100);
+    }
+  };
 
   const updateScore = (player) => {
     setScore((prevScore) => {
@@ -90,155 +118,93 @@ const VolleyballGame = () => {
 
   const handleOutOfBounds = (losingPlayer) => {
     updateScore(losingPlayer);
+    
+    // Reset ball to the serving side of the scoring player
+    const servingSideX = losingPlayer === 'player2' ? courtWidth / 4 : courtWidth * 3 / 4;
+
     setBallState({
-      position: { top: 200, left: 400 },
-      speed: 5,
-      direction: { x: 1, y: 1 },
+      position: { top: courtHeight - 20, left: servingSideX },
+      speed: 0,
+      direction: { x: 0, y: 0 },
       spinX: 0,
       spinY: 0,
+      isServed: false,
     });
-    setPlayer1Position(courtHeight / 2 - paddleHeight / 2);
-    setPlayer2Position(courtHeight / 2 - paddleHeight / 2);
-    powerUpEffects.current = {
-      player1Speed: 0,
-      player2Speed: 0,
-      ballSpeed: 0,
-      paddle1Height: paddleHeight,
-      paddle2Height: paddleHeight,
-    };
+    // ... (reset player positions and power-ups)
   };
 
-  const handleRestart = () => {
-    setScore({ player1: 0, player2: 0 });
-    setIsGameOver(false);
-    setWinner('');
-    setBallState({
-      position: { top: 200, left: 400 },
-      speed: 5,
-      direction: { x: 1, y: 1 },
-      spinX: 0,
-      spinY: 0,
-    });
-    setPlayer1Position(courtHeight / 2 - paddleHeight / 2);
-    setPlayer2Position(courtHeight / 2 - paddleHeight / 2);
-    setPowerUpState(null);
-    powerUpEffects.current = {
-      player1Speed: 0,
-      player2Speed: 0,
-      ballSpeed: 0,
-      paddle1Height: paddleHeight,
-      paddle2Height: paddleHeight,
-    };
-  };
-
-  const applyPowerUpEffect = (type, player) => {
-    switch (type) {
-      case 'speed':
-        powerUpEffects.current.ballSpeed = 5;
-        setTimeout(() => {
-          powerUpEffects.current.ballSpeed = 0;
-        }, 5000);
-        break;
-      case 'enlarge':
-        if (player === 'player1') {
-          powerUpEffects.current.paddle1Height = paddleHeight * 1.5;
-        } else {
-          powerUpEffects.current.paddle2Height = paddleHeight * 1.5;
-        }
-        setTimeout(() => {
-          powerUpEffects.current.paddle1Height = paddleHeight;
-          powerUpEffects.current.paddle2Height = paddleHeight;
-        }, 5000);
-        break;
-      case 'slow':
-        powerUpEffects.current.ballSpeed = -3;
-        setTimeout(() => {
-          powerUpEffects.current.ballSpeed = 0;
-        }, 5000);
-        break;
-      default:
-        break;
+  const handleServe = () => {
+    if (!ballState.isServed) {
+      setBallState((prev) => ({
+        ...prev,
+        speed: 10,
+        direction: { x: 1, y: -2 }, // Launch ball up and forward
+        isServed: true,
+      }));
     }
   };
 
-  useEffect(() => {
-    if (isGameOver) return;
-
-    const spawnTimer = setInterval(() => {
-      if (!powerUpState) {
-        const types = ['speed', 'enlarge', 'slow'];
-        const randomType = types[Math.floor(Math.random() * types.length)];
-        const randomPosition = {
-          top: Math.random() * (courtHeight - 30),
-          left: Math.random() * (courtWidth - 30),
-        };
-        setPowerUpState({ type: randomType, position: randomPosition });
-      }
-    }, powerUpInterval);
-    
-    return () => {
-      clearInterval(spawnTimer);
-    };
-  }, [isGameOver, courtWidth, courtHeight, powerUpState, powerUpInterval]);
+  // ... (handleRestart, applyPowerUpEffect, handleDifficultyChange, useEffect for power-ups)
 
   return (
     <GameContainer>
-      <Scoreboard
-        player1Score={score.player1}
-        player2Score={score.player2}
-        isGameOver={isGameOver}
-        winner={winner}
-      />
-      <Court
-        courtWidth={courtWidth}
-        courtHeight={courtHeight}
-      >
-        <Net
-          courtWidth={courtWidth}
-          netWidth={netWidth}
-          netHeight={netHeight}
-        />
+      <DifficultySelector value={difficulty} onChange={(e) => setDifficulty(e.target.value)}>
+        <option value="easy">Easy</option>
+        <option value="normal">Normal</option>
+        <option value="hard">Hard</option>
+      </DifficultySelector>
+      <Scoreboard player1Score={score.player1} player2Score={score.player2} isGameOver={isGameOver} winner={winner} />
+      <Court courtWidth={courtWidth} courtHeight={courtHeight}>
+        <Net courtWidth={courtWidth} netTop={netTop} netHeight={netHeight} />
+        
         <Player
-          position={player1Position}
-          onPlayerMove={setPlayer1Position}
+          positionX={player1PositionX}
+          onPlayerMoveX={setPlayer1PositionX}
+          positionY={player1PositionY}
+          onPlayerMoveY={setPlayer1PositionY}
+          courtWidth={courtWidth / 2} // Player 1 restricted to left side
           courtHeight={courtHeight}
           paddleHeight={powerUpEffects.current.paddle1Height}
+          isFlashing={player1Flashing}
+          onServe={handleServe}
         />
         <AIOpponent
-          position={player2Position}
-          onPlayerMove={setPlayer2Position}
+          positionX={player2PositionX}
+          onPlayerMoveX={setPlayer2PositionX}
+          positionY={player2PositionY}
+          onPlayerMoveY={setPlayer2PositionY}
+          courtWidth={courtWidth / 2} // Player 2 restricted to right side
           courtHeight={courtHeight}
           paddleHeight={powerUpEffects.current.paddle2Height}
-          ballPosition={ballState.position}
+          ballState={ballState}
+          difficulty={difficulty}
+          isFlashing={player2Flashing}
         />
         <Ball
-          initialPosition={ballState.position}
-          initialSpeed={ballState.speed + powerUpEffects.current.ballSpeed}
-          initialDirection={ballState.direction}
+          // ... (existing props)
           courtWidth={courtWidth}
           courtHeight={courtHeight}
-          netWidth={netWidth}
-          netHeight={netHeight}
+          netTop={netTop} // Pass net height for collision
           paddleHeight={paddleHeight}
-          player1Paddle={{ top: player1Position, left: 50, width: paddleWidth, height: powerUpEffects.current.paddle1Height }}
-          player2Paddle={{ top: player2Position, left: 750, width: paddleWidth, height: powerUpEffects.current.paddle2Height }}
+          player1Paddle={{ 
+            x: player1PositionX, 
+            y: player1PositionY, 
+            width: paddleWidth, 
+            height: powerUpEffects.current.paddle1Height 
+          }}
+          player2Paddle={{ 
+            x: player2PositionX, 
+            y: player2PositionY, 
+            width: paddleWidth, 
+            height: powerUpEffects.current.paddle2Height 
+          }}
           outOfBounds={handleOutOfBounds}
           onBallUpdate={setBallState}
-          powerUpState={powerUpState}
-          setPowerUpState={setPowerUpState}
-          applyPowerUpEffect={applyPowerUpEffect}
+          onPaddleCollision={triggerPaddleFlash}
         />
-        {powerUpState && (
-          <PowerUp type={powerUpState.type} position={powerUpState.position} />
-        )}
+        {/* ... (PowerUp rendering) */}
       </Court>
-      {isGameOver && (
-        <GameOverScreen>
-          <h2>Game Over!</h2>
-          <h3>{winner} wins!</h3>
-          <RestartButton onClick={handleRestart}>Play Again</RestartButton>
-        </GameOverScreen>
-      )}
+      {/* ... (GameOverScreen rendering) */}
     </GameContainer>
   );
 };

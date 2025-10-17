@@ -1,32 +1,64 @@
 import React, { useState, useEffect } from 'react';
-import styled from 'styled-components';
+import styled, { keyframes } from 'styled-components';
 
-const Paddle = styled.div`
-  width: 20px;
-  height: 100px;
-  background-color: blue;
-  position: absolute;
-  top: ${(props) => props.top}px;
-  left: 50px;
+const jumpAnimation = keyframes`
+  0% { transform: translateY(0); }
+  50% { transform: translateY(-50px); } /* Player jumps 50px */
+  100% { transform: translateY(0); }
 `;
 
-const Player = ({ courtHeight, onPlayerMove, paddleHeight }) => {
-  const speed = 15; // Increased speed for more responsive control
+const PlayerBody = styled.div`
+  width: 30px;
+  height: ${(props) => props.paddleHeight}px;
+  background-color: ${(props) => (props.isFlashing ? '#f0f0f0' : '#d81b60')};
+  border-radius: 5px;
+  position: absolute;
+  /* Use props for X position */
+  left: ${(props) => props.positionX}px; 
+  /* Fixed Y position at the bottom of the court */
+  top: ${(props) => props.positionY}px;
+  
+  transition: background-color 0.05s ease-in-out, transform 0.2s ease-out;
+  
+  /* Apply jump animation */
+  ${(props) => props.isJumping && `animation: ${jumpAnimation} 0.4s ease-out;`}
+`;
+
+const Player = ({ courtWidth, courtHeight, onPlayerMoveX, onPlayerMoveY, paddleHeight, positionX, positionY, isFlashing, onServe }) => {
+  const lateralSpeed = 10;
+  const [isJumping, setIsJumping] = useState(false);
 
   useEffect(() => {
     const handleKeyDown = (event) => {
-      if (event.key === 'ArrowUp') {
-        onPlayerMove(prevPos => Math.max(0, prevPos - speed));
-      } else if (event.key === 'ArrowDown') {
-        onPlayerMove(prevPos => Math.min(courtHeight - paddleHeight, prevPos + speed));
+      // 1. Lateral Movement (Left/Right)
+      if (event.key === 'ArrowLeft') {
+        onPlayerMoveX((prevX) => Math.max(0, prevX - lateralSpeed));
+      } else if (event.key === 'ArrowRight') {
+        // Restrict Player 1 to the left side of the court
+        onPlayerMoveX((prevX) => Math.min(courtWidth - 30, prevX + lateralSpeed));
+      }
+
+      // 2. Jump/Hit (Up/Space)
+      if ((event.key === 'ArrowUp' || event.key === ' ') && !isJumping) {
+        setIsJumping(true);
+        onServe(); // Attempt to serve on first press
+        setTimeout(() => setIsJumping(false), 400); // Reset jump after animation time
       }
     };
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [onPlayerMove, courtHeight, paddleHeight, speed]);
+  }, [onPlayerMoveX, isJumping, onServe, lateralSpeed, courtWidth]);
 
-  return <Paddle top={courtHeight / 2 - paddleHeight / 2} />; // Initial position
+  return (
+    <PlayerBody 
+      positionX={positionX} 
+      positionY={positionY} 
+      paddleHeight={paddleHeight} 
+      isFlashing={isFlashing} 
+      isJumping={isJumping}
+    />
+  );
 };
 
 export default Player;
