@@ -1,5 +1,7 @@
+// src/components/Player.js
+
 import React, { useState, useEffect } from 'react';
-import styled, { keyframes } from 'styled-components';
+import styled, { keyframes, css } from 'styled-components'; // <--- ADD 'css' HERE
 
 const jumpAnimation = keyframes`
   0% { transform: translateY(0); }
@@ -20,8 +22,10 @@ const PlayerBody = styled.div`
   
   transition: background-color 0.05s ease-in-out, transform 0.2s ease-out;
   
-  /* Apply jump animation */
-  ${(props) => props.isJumping && `animation: ${jumpAnimation} 0.4s ease-out;`}
+  /* FIX: Wrap the conditional animation in the css helper */
+  ${(props) => props.isJumping && css`
+    animation: ${jumpAnimation} 0.4s ease-out;
+  `}
 `;
 
 const Player = ({ courtWidth, courtHeight, onPlayerMoveX, onPlayerMoveY, paddleHeight, positionX, positionY, isFlashing, onServe }) => {
@@ -32,16 +36,18 @@ const Player = ({ courtWidth, courtHeight, onPlayerMoveX, onPlayerMoveY, paddleH
     const handleKeyDown = (event) => {
       // 1. Lateral Movement (Left/Right)
       if (event.key === 'ArrowLeft') {
+        // Prevents moving past the left edge (x=0)
         onPlayerMoveX((prevX) => Math.max(0, prevX - lateralSpeed));
       } else if (event.key === 'ArrowRight') {
-        // Restrict Player 1 to the left side of the court
-        onPlayerMoveX((prevX) => Math.min(courtWidth - 30, prevX + lateralSpeed));
+        // Restrict Player 1 to the left side of the court (courtWidth / 2 is the net center)
+        // Using a hardcoded max limit of (courtWidth/2 - 30) for simplicity
+        onPlayerMoveX((prevX) => Math.min(courtWidth / 2 - 30, prevX + lateralSpeed));
       }
 
       // 2. Jump/Hit (Up/Space)
       if ((event.key === 'ArrowUp' || event.key === ' ') && !isJumping) {
         setIsJumping(true);
-        onServe(); // Attempt to serve on first press
+        onServe(); // Attempt to serve or hit on jump
         setTimeout(() => setIsJumping(false), 400); // Reset jump after animation time
       }
     };
