@@ -1,3 +1,5 @@
+// src/components/Ball.js
+
 import React, { useState, useEffect } from 'react';
 import styled from 'styled-components';
 import SAT from 'sat';
@@ -7,29 +9,32 @@ const BallDiv = styled.div`
   width: 20px;
   height: 20px;
   border-radius: 50%;
-  background-color: red;
+  /* Volleyball colors: White background with subtle segments */
+  background: radial-gradient(circle at 30% 30%, #fff, #f0f0f0);
+  border: 1px solid #ccc;
+  box-shadow: 0 0 5px rgba(0, 0, 0, 0.2);
   position: absolute;
   top: ${(p) => p.top}px;
   left: ${(p) => p.left}px;
+  transition: transform 0.1s linear; 
 `;
 // -------------------------
 
 const Ball = ({
   initialPosition = { top: 200, left: 400 },
   initialSpeed = 0,
-  initialDirection = { x: 0, y: 0 }, // Ensure default object exists
+  initialDirection = { x: 0, y: 0 }, 
   ...P // Collect all other props
 }) => {
-  // FIX: Use default props directly in useState, ensuring they are never undefined
   const [pos, setPos] = useState(initialPosition);
   const [speed, setSpeed] = useState(initialSpeed);
   const [dir, setDir] = useState(initialDirection);
   const [, setSpinY] = useState(0); 
 
-  const R = 10; // Radius
-  const G = 0.5; // Gravity
-  const AR = 0.01; // Air Resistance
-  const C = P.courtWidth / 2; // Net Center
+  const R = 10; 
+  const G = 0.5; 
+  const AR = 0.01; 
+  const C = P.courtWidth / 2; 
 
   // Resync state on parent change (e.g., serve/reset)
   useEffect(() => {
@@ -40,7 +45,6 @@ const Ball = ({
 
   // --- Collision Logic ---
   const collision = (ballPos, paddle, isP1) => {
-    // Spatial Check & Null Check
     if ((isP1 && ballPos.left > C) || (!isP1 && ballPos.left < C) || !paddle) return false;
 
     const ballC = new SAT.Circle(new SAT.Vector(ballPos.left, ballPos.top), R);
@@ -62,7 +66,12 @@ const Ball = ({
   
   // --- Animation Loop ---
   const animate = () => {
-    if (speed === 0) return requestAnimationFrame(animate);
+    // FIX: Only pause movement if speed is exactly zero, 
+    // but the loop MUST continue running to check for serve input from App.js
+    if (speed === 0 && !P.initialDirection.x && !P.initialDirection.y) {
+       requestAnimationFrame(animate);
+       return;
+    }
 
     let s = speed * (1 - AR);
     let newDir = { x: dir.x, y: dir.y + G / 10 };
@@ -80,12 +89,17 @@ const Ball = ({
       P.outOfBounds(newLeft < C ? 'player1' : 'player2');
       return;
     }
+    
+    // 3. HORIZONTAL WALL BOUNCE (Kept for safety, though should rarely happen)
+    if (newLeft - R <= 0 || newLeft + R >= P.courtWidth) {
+        newDir.x = -newDir.x;
+    }
 
-    // 3. PADDLE COLLISION
+    // 4. PADDLE COLLISION 
     collision({ top: newTop, left: newLeft }, P.player1Paddle, true);
     collision({ top: newTop, left: newLeft }, P.player2Paddle, false);
     
-    // 4. Update state
+    // 5. Update state
     P.onBallUpdate({ position: { top: newTop, left: newLeft }, speed: s, direction: newDir });
     
     requestAnimationFrame(animate);

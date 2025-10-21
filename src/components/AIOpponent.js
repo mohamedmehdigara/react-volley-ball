@@ -1,7 +1,9 @@
+// src/components/AIOpponent.js
+
 import React, { useEffect } from 'react';
 import styled from 'styled-components';
 
-const PADDLE_WIDTH = 30; // Define constant outside component
+const PADDLE_WIDTH = 30; 
 
 const OpponentBody = styled.div`
   width: ${PADDLE_WIDTH}px;
@@ -14,10 +16,9 @@ const OpponentBody = styled.div`
   transition: background-color 0.05s ease-in-out;
 `;
 
-const AIOpponent = ({ courtWidth, courtHeight, ballState, onPlayerMoveX, onPlayerMoveY, paddleHeight, positionX, positionY, difficulty, isFlashing }) => {
+const AIOpponent = ({ courtWidth, courtHeight, ballState, onPlayerMoveX, onPlayerMoveY, paddleHeight, positionX, positionY, difficulty }) => {
   
   useEffect(() => {
-    // Determine AI speed and delay based on difficulty
     const { speed: aiSpeed, delay: aiDelay } = (() => {
       switch (difficulty) {
         case 'easy': return { speed: 3, delay: 100 };
@@ -27,24 +28,28 @@ const AIOpponent = ({ courtWidth, courtHeight, ballState, onPlayerMoveX, onPlaye
     })();
 
     const followBall = () => {
-      // Only track ball if it has been served and is on the AI's side (right half)
-      if (!ballState.isServed || ballState.position.left < courtWidth / 2) return;
+      const COURT_MID = courtWidth / 2;
+      const baseLineY = courtHeight - paddleHeight;
+      
+      // AI only tracks if ball is served AND is on the AI's side or near the net
+      if (!ballState.isServed || ballState.position.left < COURT_MID - PADDLE_WIDTH) return;
 
       const targetX = ballState.position.left - PADDLE_WIDTH / 2;
       const currentX = positionX;
-      const courtHalf = courtWidth / 2;
 
       // 1. Lateral Movement (Horizontal)
-      if (targetX < currentX - 10) { // Tolerance of 10px
-        onPlayerMoveX((prevX) => Math.max(courtHalf, prevX - aiSpeed));
+      if (targetX < currentX - 10) { 
+        // Cannot move left past the net (COURT_MID)
+        onPlayerMoveX((prevX) => Math.max(COURT_MID, prevX - aiSpeed));
       } else if (targetX > currentX + 10) {
+        // Cannot move right past the edge
         onPlayerMoveX((prevX) => Math.min(courtWidth - PADDLE_WIDTH, prevX + aiSpeed));
       }
       
-      // 2. Vertical Jump/Block Logic (simplified)
-      const baseLineY = courtHeight - paddleHeight;
+      // 2. Vertical Jump/Block Logic
+      // Check if ball is low (hitting range) and coming towards AI (dir.x < 0)
       if (ballState.position.top > baseLineY - 50 && ballState.direction.x < 0) {
-        // Jump only if the ball is within hitting range and moving towards the AI
+        // Move paddle up to simulate jump/block
         onPlayerMoveY(baseLineY - 50);
         setTimeout(() => onPlayerMoveY(baseLineY), 200); // Reset jump
       }
@@ -52,14 +57,13 @@ const AIOpponent = ({ courtWidth, courtHeight, ballState, onPlayerMoveX, onPlaye
 
     const timeoutId = setTimeout(followBall, aiDelay);
     return () => clearTimeout(timeoutId);
-  }, [ballState, positionX, positionY, courtWidth, paddleHeight, difficulty, onPlayerMoveX, onPlayerMoveY]);
+  }, [ballState, positionX, positionY, courtWidth, paddleHeight, difficulty, onPlayerMoveX, onPlayerMoveY, courtHeight]);
 
   return (
     <OpponentBody 
       positionX={positionX} 
       positionY={positionY} 
       paddleHeight={paddleHeight} 
-      isFlashing={isFlashing}
     />
   );
 };
