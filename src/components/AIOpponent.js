@@ -1,9 +1,10 @@
-// src/components/AIOpponent.js
+// src/components/AIOpponent.js (Corrected Initialization Order)
 
-import React, { useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import styled from 'styled-components';
 
 const PADDLE_WIDTH = 30; 
+const JUMP_HEIGHT = 50; 
 
 const OpponentBody = styled.div`
   width: ${PADDLE_WIDTH}px;
@@ -13,57 +14,90 @@ const OpponentBody = styled.div`
   position: absolute;
   left: ${(props) => props.positionX}px; 
   top: ${(props) => props.positionY}px;
-  transition: background-color 0.05s ease-in-out;
+  transition: background-color 0.05s ease-in-out, left 0.1s linear, top 0.1s linear;
 `;
 
-const AIOpponent = ({ courtWidth, courtHeight, ballState, onPlayerMoveX, onPlayerMoveY, paddleHeight, positionX, positionY, difficulty }) => {
-  
+const AIOpponent = ({netTop, courtWidth, courtHeight, ballState, onPlayerMoveX, onPlayerMoveY, paddleHeight, positionX, positionY, difficulty, isFlashing }) => {
+  const [isJumping, setIsJumping] = useState(false);
+
   useEffect(() => {
-    const { speed: aiSpeed, delay: aiDelay } = (() => {
+    // 1. Difficulty Settings
+    const { speed: aiSpeed, jumpThreshold } = (() => {
       switch (difficulty) {
-        case 'easy': return { speed: 3, delay: 100 };
-        case 'hard': return { speed: 7, delay: 20 };
-        default: return { speed: 5, delay: 50 };
+        case 'easy': return { speed: 3, jumpThreshold: 0.2 };
+        case 'hard': return { speed: 7, jumpThreshold: 0.8 };
+        default: return { speed: 5, jumpThreshold: 0.5 };
       }
     })();
 
+    const COURT_MID = courtWidth / 2;
+    const baseLineY = courtHeight - paddleHeight;
+    const BALL_RADIUS = 10;
+    
+    // --- FIX: Define the function first ---
     const followBall = () => {
-      const COURT_MID = courtWidth / 2;
-      const baseLineY = courtHeight - paddleHeight;
-      
-      // AI only tracks if ball is served AND is on the AI's side or near the net
-      if (!ballState.isServed || ballState.position.left < COURT_MID - PADDLE_WIDTH) return;
+        // AI only runs when the ball is served
+        if (!ballState.isServed) {
+            // If not served, just schedule the next check and return
+            const timeoutId = setTimeout(followBall, 16); 
+            return () => clearTimeout(timeoutId);
+        };
+        
+        // 2. Lateral Movement (Horizontal Tracking)
+        const targetX = ballState.position.left - PADDLE_WIDTH / 2;
+        const currentX = positionX;
+        
+        // Only track if the ball is on the AI's side (or slightly over the net)
+        if (ballState.position.left >= COURT_MID - PADDLE_WIDTH / 2) {
+            if (targetX < currentX - 5) { 
+              // Move Left
+              onPlayerMoveX((prevX) => Math.max(COURT_MID, prevX - aiSpeed));
+            } else if (targetX > currentX + 5) {
+              // Move Right
+              onPlayerMoveX((prevX) => Math.min(courtWidth - PADDLE_WIDTH, prevX + aiSpeed));
+            }
+        }
 
-      const targetX = ballState.position.left - PADDLE_WIDTH / 2;
-      const currentX = positionX;
+        // 3. Vertical Movement (Jumping/Blocking)
+        const isBallHittable = ballState.position.top > netTop - JUMP_HEIGHT && ballState.position.top < baseLineY;
 
-      // 1. Lateral Movement (Horizontal)
-      if (targetX < currentX - 10) { 
-        // Cannot move left past the net (COURT_MID)
-        onPlayerMoveX((prevX) => Math.max(COURT_MID, prevX - aiSpeed));
-      } else if (targetX > currentX + 10) {
-        // Cannot move right past the edge
-        onPlayerMoveX((prevX) => Math.min(courtWidth - PADDLE_WIDTH, prevX + aiSpeed));
-      }
-      
-      // 2. Vertical Jump/Block Logic
-      // Check if ball is low (hitting range) and coming towards AI (dir.x < 0)
-      if (ballState.position.top > baseLineY - 50 && ballState.direction.x < 0) {
-        // Move paddle up to simulate jump/block
-        onPlayerMoveY(baseLineY - 50);
-        setTimeout(() => onPlayerMoveY(baseLineY), 200); // Reset jump
-      }
+        if (ballState.direction.x < 0 && isBallHittable) {
+            const shouldJump = Math.random() < jumpThreshold;
+            const isBallAligned = Math.abs(ballState.position.left - currentX) < PADDLE_WIDTH + 10;
+            
+            if (shouldJump && !isJumping && isBallAligned) {
+                setIsJumping(true);
+                
+                onPlayerMoveY(baseLineY - JUMP_HEIGHT);
+                
+                setTimeout(() => {
+                    onPlayerMoveY(baseLineY);
+                    setIsJumping(false);
+                }, 400);
+            }
+        }
+        
+        // Schedule the next check
+        const timeoutId = setTimeout(followBall, 16); 
+        return () => clearTimeout(timeoutId);
     };
+    // --- End of function definition ---
+    
+    // 4. Start the loop by calling the function
+    const cleanUp = followBall();
+    
+    // This return cleans up the initial timeout (if it was set)
+    return cleanUp;
 
-    const timeoutId = setTimeout(followBall, aiDelay);
-    return () => clearTimeout(timeoutId);
-  }, [ballState, positionX, positionY, courtWidth, paddleHeight, difficulty, onPlayerMoveX, onPlayerMoveY, courtHeight]);
+  }, [ballState, positionX, positionY, courtWidth, courtHeight, paddleHeight, difficulty, onPlayerMoveX, onPlayerMoveY, isJumping]);
+
 
   return (
     <OpponentBody 
       positionX={positionX} 
       positionY={positionY} 
       paddleHeight={paddleHeight} 
+      isFlashing={isFlashing}
     />
   );
 };

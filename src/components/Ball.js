@@ -1,6 +1,6 @@
-// src/components/Ball.js
+// src/components/Ball.js (FINAL, STATELESS PHYSICS)
 
-import React, { useState, useEffect } from 'react';
+import React, { useEffect } from 'react';
 import styled from 'styled-components';
 import SAT from 'sat';
 
@@ -22,30 +22,31 @@ const BallDiv = styled.div`
 const Ball = ({
   initialPosition = { top: 200, left: 400 },
   initialSpeed = 0,
-  initialDirection = { x: 0, y: 0 }, 
-  ...P 
+  initialDirection = { x: 0, y: 0 },
+  courtWidth,
+  courtHeight,
+  netTop,
+  onPaddleCollision,
+  outOfBounds,
+  player1Paddle,
+  player2Paddle,
+  onBallUpdate, // This setter now dictates movement
+  paddleHeight,
+  // Power-up props omitted for simplicity, but included in the prop spread if needed
+  ...P
 }) => {
-  // Use fallbacks for state initialization (Fixes 'undefined' read errors)
-  const [pos, setPos] = useState(initialPosition || { top: 200, left: 400 });
-  const [speed, setSpeed] = useState(initialSpeed || 0);
-  const [dir, setDir] = useState(initialDirection || { x: 0, y: 0 }); 
-  const [, setSpinY] = useState(0); 
+  // REMOVE useState for position, speed, and direction.
+  // We only keep spin as it's locally calculated.
+  const [spinY, setSpinY] = React.useState(0); 
 
   const R = 10; 
   const G = 0.5; 
   const AR = 0.01; 
-  const C = P.courtWidth / 2; 
+  const C = courtWidth / 2; 
 
-  // Resync state on parent change (e.g., serve/reset)
-  useEffect(() => {
-    setPos(P.initialPosition || { top: 200, left: 400 });
-    setSpeed(P.initialSpeed || 0);
-    setDir(P.initialDirection || { x: 0, y: 0 }); 
-  }, [P.initialPosition, P.initialSpeed, P.initialDirection]);
-
-  // --- Collision Logic (remains same) ---
-  const collision = (ballPos, paddle, isP1) => {
-    if ((isP1 && ballPos.left > C) || (!isP1 && ballPos.left < C) || !paddle) return false;
+  // Collision logic now reads the current position/speed/direction directly from props
+  const collision = (ballPos, paddle, isP1, currentDirection) => {
+    if ((isP1 && ballPos.left > C) || (!isP1 && ballPos.left < C) || !paddle) return currentDirection;
 
     const ballC = new SAT.Circle(new SAT.Vector(ballPos.left, ballPos.top), R);
     const paddleR = new SAT.Polygon(new SAT.Vector(paddle.x, paddle.y), [
@@ -53,64 +54,76 @@ const Ball = ({
     ]);
 
     if (SAT.testCirclePolygon(ballC, paddleR)) {
-      setDir((prev) => ({ ...prev, x: -prev.x }));
+      // Collision occurred! Calculate new direction
+      const newDirection = { ...currentDirection, x: -currentDirection.x };
       
       const hitY = ballPos.top - (paddle.y + paddle.height / 2);
-      setSpinY(hitY / (P.paddleHeight / 2) * 0.5); 
+      setSpinY(hitY / (paddleHeight / 2) * 0.5); 
       
-      P.onPaddleCollision(isP1 ? 'player1' : 'player2');
-      return true;
+      onPaddleCollision(isP1 ? 'player1' : 'player2');
+      return newDirection;
     }
-    return false;
+    return currentDirection; // Return direction unchanged
   };
   
   // --- Animation Loop ---
-  const animate = () => {
-    // FIX: If speed is 0 and direction is also 0 (unserved state), continue the loop 
-    // without moving to await the serve state update from App.js.
-    if (speed === 0 && dir.x === 0 && dir.y === 0) {
-       requestAnimationFrame(animate);
-       return;
-    }
-
-    let s = speed * (1 - AR);
-    let newDir = { x: dir.x, y: dir.y + G / 10 };
-    let newTop = pos.top + s * newDir.y;
-    let newLeft = pos.left + s * newDir.x;
-
-    // 1. FLOOR BOUNDARY SCORING
-    if (newTop + R >= P.courtHeight) {
-      P.outOfBounds(newLeft < C ? 'player2' : 'player1');
-      return;
-    }
-
-    // 2. NET COLLISION (Fault)
-    if (newTop + R >= P.netTop && Math.abs(newLeft - C) < R) {
-      P.outOfBounds(newLeft < C ? 'player1' : 'player2');
-      return;
-    }
-    
-    // 3. HORIZONTAL WALL BOUNCE
-    if (newLeft - R <= 0 || newLeft + R >= P.courtWidth) {
-        newDir.x = -newDir.x;
-    }
-
-    // 4. PADDLE COLLISION 
-    collision({ top: newTop, left: newLeft }, P.player1Paddle, true);
-    collision({ top: newTop, left: newLeft }, P.player2Paddle, false);
-    
-    // 5. Update state
-    P.onBallUpdate({ position: { top: newTop, left: newLeft }, speed: s, direction: newDir });
-    
-    requestAnimationFrame(animate);
-  };
-
+  // The loop is now defined inside a hook to capture the latest props/values.
   useEffect(() => {
-    const frame = requestAnimationFrame(animate);
-    return () => cancelAnimationFrame(frame);
-  }, [pos, speed, dir, P.courtWidth, P.courtHeight, P.netTop, P.player1Paddle, P.player2Paddle]);
+    let animationFrameId;
 
-  return <BallDiv top={pos.top} left={pos.left} />;
+    const animate = () => {
+      // Read current state directly from the props (which are updated by App.js)
+      let currentPos = initialPosition;
+      let currentSpeed = initialSpeed;
+      let currentDir = initialDirection;
+
+      if (currentSpeed === 0 && currentDir.x === 0 && currentDir.y === 0) {
+        // Still paused, just request next frame to check again
+        animationFrameId = requestAnimationFrame(animate);
+        return;
+      }
+      
+      // 1. Apply Physics
+      let s = currentSpeed * (1 - AR);
+      let newDir = { x: currentDir.x, y: currentDir.y + G / 10 };
+      let newTop = currentPos.top + s * newDir.y;
+      let newLeft = currentPos.left + s * newDir.x;
+
+      // 2. FLOOR BOUNDARY SCORING (must happen before collision update)
+      if (newTop + R >= courtHeight) {
+        outOfBounds(newLeft < C ? 'player2' : 'player1');
+        return;
+      }
+
+      // 3. NET COLLISION (Fault)
+      if (newTop + R >= netTop && Math.abs(newLeft - C) < R) {
+        outOfBounds(newLeft < C ? 'player1' : 'player2');
+        return;
+      }
+      
+      // 4. HORIZONTAL WALL BOUNCE
+      if (newLeft - R <= 0 || newLeft + R >= courtWidth) {
+          newDir.x = -newDir.x;
+      }
+
+      // 5. PADDLE COLLISION (Updates newDir if collision occurs)
+      newDir = collision({ top: newTop, left: newLeft }, player1Paddle, true, newDir);
+      newDir = collision({ top: newTop, left: newLeft }, player2Paddle, false, newDir);
+      
+      // 6. Update Parent State (This triggers a re-render with new props/positions)
+      onBallUpdate({ position: { top: newTop, left: newLeft }, speed: s, direction: newDir });
+      
+      animationFrameId = requestAnimationFrame(animate);
+    };
+
+    animationFrameId = requestAnimationFrame(animate);
+    return () => cancelAnimationFrame(animationFrameId);
+    
+    // The dependency array is now HUGE, but it correctly ensures the loop uses the LATEST props/state
+  }, [initialPosition, initialSpeed, initialDirection, courtWidth, courtHeight, netTop, player1Paddle, player2Paddle, onBallUpdate, onPaddleCollision, outOfBounds]);
+
+  // The return statement still relies on the current initialPosition prop for rendering
+  return <BallDiv top={initialPosition.top} left={initialPosition.left} />;
 };
 
 export default Ball;
