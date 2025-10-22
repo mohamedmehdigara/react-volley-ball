@@ -1,13 +1,15 @@
-// src/components/AIOpponent.js (IMPROVED AND ENHANCED)
+// src/components/AIOpponent.js (ULTIMATE IMPROVED VERSION)
 
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useCallback, useMemo } from 'react';
 import styled from 'styled-components';
 
 const PADDLE_WIDTH = 30; 
 const PADDLE_HALF_WIDTH = PADDLE_WIDTH / 2;
 const JUMP_HEIGHT = 50; 
 const BALL_RADIUS = 10;
-const G = 0.5 / 10; // Gravity constant used for simple trajectory prediction (from Ball.js)
+// CRITICAL: Ensure G is a constant, or passed as a prop from App.js where physics is defined.
+// Using the provided value:
+const G_EFFECTIVE = 0.5 / 10; 
 
 const OpponentBody = styled.div`
   width: ${PADDLE_WIDTH}px;
@@ -17,51 +19,60 @@ const OpponentBody = styled.div`
   position: absolute;
   left: ${(props) => props.positionX}px; 
   top: ${(props) => props.positionY}px;
-  /* Reduced transition time for a slightly faster, more responsive AI feel */
   transition: background-color 0.05s ease-in-out, left 0.05s linear, top 0.05s linear;
 `;
 
 const AIOpponent = ({ courtWidth, courtHeight, ballState, onPlayerMoveX, onPlayerMoveY, paddleHeight, positionX, positionY, difficulty, isFlashing, netTop }) => {
   const [isJumping, setIsJumping] = useState(false);
 
-  // --- TRAJECTORY PREDICTION FUNCTION ---
-  // A simplified physics calculation to predict the ball's X position at a certain Y height (e.g., baseline)
-  const predictX = (ball) => {
-    // If ball is moving toward the player (direction.x < 0)
-    if (ball.direction.x < 0) {
-      const targetY = courtHeight - BALL_RADIUS; // Aim for the floor/baseline
-      
-      // Calculate time (t) to reach targetY using vertical motion:
-      // Equation: Δy = V_y * t + 0.5 * G * t^2
-      // This is a quadratic equation, but a simplified approach for small jumps is:
-      // Time to fall = sqrt(2 * Δy / G_effective)
-      const dy = targetY - ball.position.top;
-      // Use a safety check for G
-      if (G === 0) return ball.position.left; 
+  // Derived constants moved out of useEffect for performance
+  const COURT_MID = courtWidth / 2;
+  const baseLineY = courtHeight - paddleHeight;
 
-      const t_vertical = (-ball.direction.y + Math.sqrt(ball.direction.y * ball.direction.y + 2 * G * dy)) / G;
-      
-      // Calculate horizontal position at that time:
-      // Equation: X_final = X_initial + V_x * t
-      const predictedX = ball.position.left + ball.direction.x * ball.speed * t_vertical;
-
-      return predictedX;
+  // Use useMemo for Difficulty Settings
+  const { speed: maxSpeed, jumpThreshold, accuracy } = useMemo(() => {
+    switch (difficulty) {
+      case 'easy': return { speed: 3, jumpThreshold: 0.2, accuracy: 0.3 };
+      case 'hard': return { speed: 8, jumpThreshold: 0.9, accuracy: 1.0 };
+      default: return { speed: 5, jumpThreshold: 0.5, accuracy: 0.7 };
     }
-    return ball.position.left; // If moving away, just track current position
-  };
+  }, [difficulty]);
+
+  // --- TRAJECTORY PREDICTION FUNCTION (Wrapped in useCallback) ---
+  const predictX = useCallback((ball) => {
+    if (ball.direction.x === 0 || ball.speed === 0) return ball.position.left;
+
+    // We predict the X-position when the ball reaches the baseline Y-coordinate.
+    const targetY = courtHeight - BALL_RADIUS; 
+    const dy = targetY - ball.position.top;
+
+    if (G_EFFECTIVE === 0) return ball.position.left; 
+
+    // Solving the quadratic equation for time (t): 0.5 * G * t^2 + V_y * t - Δy = 0
+    const a = 0.5 * G_EFFECTIVE;
+    const b = ball.direction.y;
+    const c = -dy;
+    
+    const discriminant = b * b - 4 * a * c;
+
+    if (discriminant < 0) {
+        // Imaginary roots: trajectory does not reach this Y-level (e.g., ball goes way too high)
+        // Fallback: estimate time based on current vertical velocity
+        const t_fallback = Math.max(0, dy / Math.abs(ball.direction.y * ball.speed) || 0);
+        return ball.position.left + ball.direction.x * ball.speed * t_fallback;
+    }
+
+    // Use the positive root (time moving forward)
+    const t_vertical = (-b + Math.sqrt(discriminant)) / (2 * a);
+    
+    // Calculate horizontal position
+    const predictedX = ball.position.left + ball.direction.x * ball.speed * t_vertical;
+
+    return predictedX;
+  }, [courtHeight]); // Dependency on courtHeight for targetY calculation
+
 
   useEffect(() => {
-    // 1. Difficulty Settings
-    const { speed: maxSpeed, jumpThreshold, accuracy } = (() => {
-      switch (difficulty) {
-        case 'easy': return { speed: 3, jumpThreshold: 0.2, accuracy: 0.3 };
-        case 'hard': return { speed: 8, jumpThreshold: 0.9, accuracy: 1.0 };
-        default: return { speed: 5, jumpThreshold: 0.5, accuracy: 0.7 };
-      }
-    })();
-
-    const COURT_MID = courtWidth / 2;
-    const baseLineY = courtHeight - paddleHeight;
     const updateRate = 16; 
 
     const tickAI = () => {
@@ -74,15 +85,16 @@ const AIOpponent = ({ courtWidth, courtHeight, ballState, onPlayerMoveX, onPlaye
         
         // Introduce controlled inaccuracy based on difficulty
         const maxInaccuracy = COURT_MID * (1 - accuracy);
-        const inaccuracyOffset = (Math.random() - 0.5) * maxInaccuracy; // -1 to 1 * maxInaccuracy/2
+        // Random offset to simulate human error/hesitation
+        const inaccuracyOffset = (Math.random() - 0.5) * maxInaccuracy * (1 - accuracy); 
 
-        // The AI is primarily interested in the predicted landing spot if the ball is far away.
-        const targetX = (predictedTargetX + inaccuracyOffset) - PADDLE_HALF_WIDTH;
+        // Target: Predicted landing X + center of paddle offset + inaccuracy
+        const targetXCenter = predictedTargetX + inaccuracyOffset;
+        const targetX = targetXCenter - PADDLE_HALF_WIDTH;
         const currentX = positionX;
         
         // 2b. Calculate Movement
         const distanceToTarget = targetX - currentX;
-        // Move amount is proportional to distance, capped by maxSpeed
         const moveAmount = Math.min(Math.abs(distanceToTarget), maxSpeed); 
         
         if (distanceToTarget > 5) { // Move Right
@@ -96,44 +108,52 @@ const AIOpponent = ({ courtWidth, courtHeight, ballState, onPlayerMoveX, onPlaye
 
         // --- 3. Vertical Movement (Jumping/Blocking) ---
         
-        // Jump only if the ball is moving towards us AND it's high
         const isBallMovingToAI = ballState.direction.x < 0;
         
-        // Hitting Zone 1: Ball high over the net (Spike/Block)
-        const isBallNearNetAndHigh = ballState.position.left < COURT_MID + PADDLE_WIDTH && ballState.position.top < netTop + 20;
+        // Block Zone: Ball is near the net and high enough to be blocked/spiked
+        const isBallInBlockZone = ballState.position.left < COURT_MID + PADDLE_WIDTH && ballState.position.top < netTop + 40;
+        
+        // Dig/Return Zone: Ball is dropping toward the base line.
+        const isBallInDigZone = ballState.position.top > baseLineY - JUMP_HEIGHT;
 
-        // Hitting Zone 2: Ball approaching the baseline (Dig)
-        const isBallNearBaseline = ballState.position.top > baseLineY - JUMP_HEIGHT;
+        // Alignment check: Is the paddle close enough horizontally to the ball's CURRENT position?
+        const isBallAligned = Math.abs(ballState.position.left - (currentX + PADDLE_HALF_WIDTH)) < PADDLE_WIDTH;
 
-
-        if (isBallMovingToAI && (isBallNearNetAndHigh || isBallNearBaseline)) {
-            const shouldJump = Math.random() < jumpThreshold;
-            // Alignment check: Is the paddle close enough horizontally to the ball's CURRENT position?
-            const isBallAligned = Math.abs(ballState.position.left - (currentX + PADDLE_HALF_WIDTH)) < PADDLE_WIDTH;
+        if (isBallMovingToAI && !isJumping) {
             
-            if (shouldJump && !isJumping && isBallAligned) {
-                setIsJumping(true);
-                
-                onPlayerMoveY(baseLineY - JUMP_HEIGHT);
-                
+            let actionTime = 0;
+            if (isBallInBlockZone) actionTime = 0; // Block immediately
+            else if (isBallInDigZone) actionTime = 50; // Dig/Return slightly delayed
+
+            if (actionTime > 0) {
+              // Predictive Jump Timing: Only jump if aligned AND the random check passes
+              const shouldJump = Math.random() < jumpThreshold;
+
+              if (shouldJump && isBallAligned) {
+                // Use a short delay based on the calculated action time
                 setTimeout(() => {
-                    onPlayerMoveY(baseLineY);
-                    setIsJumping(false);
-                }, 400); 
+                    // Re-check alignment before jumping to prevent stale jumps
+                    if (Math.abs(ballState.position.left - (positionX + PADDLE_HALF_WIDTH)) < PADDLE_WIDTH) {
+                        setIsJumping(true);
+                        onPlayerMoveY(baseLineY - JUMP_HEIGHT);
+                        setTimeout(() => {
+                            onPlayerMoveY(baseLineY);
+                            setIsJumping(false);
+                        }, 400); 
+                    }
+                }, actionTime);
+              }
             }
         }
     };
     
+    // Start the continuous tick loop
     const intervalId = setInterval(tickAI, updateRate);
     
     return () => clearInterval(intervalId);
 
   }, [
-      ballState.isServed, 
-      ballState.position.left, 
-      ballState.direction.x, // Added direction to dependency array for better logic sync
-      ballState.direction.y, // Added direction to dependency array for prediction sync
-      ballState.speed,       // Added speed to dependency array for prediction sync
+      ballState, // Depend on the entire ballState object for freshness
       positionX, 
       onPlayerMoveX, 
       onPlayerMoveY, 
@@ -142,7 +162,12 @@ const AIOpponent = ({ courtWidth, courtHeight, ballState, onPlayerMoveX, onPlaye
       difficulty, 
       isJumping,
       netTop,
-      courtHeight
+      // All useMemo/useCallback derived values are implicitly stable.
+      // Explicitly including maxSpeed and accuracy for clarity.
+      maxSpeed,
+      accuracy,
+      jumpThreshold,
+      predictX, 
   ]);
 
 
