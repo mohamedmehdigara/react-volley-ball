@@ -83,6 +83,7 @@ const VolleyballGame = () => {
   const handleOutOfBounds = (losingPlayer) => {
     updateScore(losingPlayer);
     
+    // Determine the serving player for the next round
     const servingPlayer = losingPlayer === 'player2' ? 1 : 2;
     const initialX = servingPlayer === 1 ? player1InitialX + paddleWidth / 2 : player2InitialX + paddleWidth / 2;
 
@@ -94,16 +95,19 @@ const VolleyballGame = () => {
     });
   };
 
-  // FIX: This function MUST update the state with a non-zero speed/direction.
+  // FIX: This function is now strictly for serving and is conditional.
   const handleServe = () => {
-    if (!ballState.isServed) {
+    // Only serve if the ball is not currently in play
+    if (!ballState.isServed && ballState.speed === 0) {
       setBallState((prev) => ({
         ...prev,
         speed: 10,
         direction: { x: 1.5, y: -2 }, 
         isServed: true,
       }));
+      return true; // Serve successful
     }
+    return false; // Ball already in play
   };
 
   const player1Paddle = { 
@@ -138,7 +142,7 @@ const VolleyballGame = () => {
           courtWidth={courtWidth}
           paddleHeight={powerUpEffects.current.paddle1Height}
           isFlashing={player1Flashing}
-          onServe={handleServe}
+          onServe={handleServe} // Player 1 handles serve and jump/hit
         />
         <AIOpponent
           positionX={player2PositionX}
@@ -151,6 +155,8 @@ const VolleyballGame = () => {
           ballState={ballState}
           difficulty={difficulty}
           isFlashing={player2Flashing}
+          netTop={netTop}
+          // The AI does NOT receive an onServe prop. It handles hits autonomously.
         />
         <Ball
           initialPosition={ballState.position}

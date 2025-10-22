@@ -1,4 +1,4 @@
-// src/components/AIOpponent.js (Corrected Initialization Order)
+// src/components/AIOpponent.js (Ensure logic is gated by ballState.isServed)
 
 import React, { useEffect, useState } from 'react';
 import styled from 'styled-components';
@@ -17,7 +17,7 @@ const OpponentBody = styled.div`
   transition: background-color 0.05s ease-in-out, left 0.1s linear, top 0.1s linear;
 `;
 
-const AIOpponent = ({netTop, courtWidth, courtHeight, ballState, onPlayerMoveX, onPlayerMoveY, paddleHeight, positionX, positionY, difficulty, isFlashing }) => {
+const AIOpponent = ({ courtWidth, courtHeight, ballState, onPlayerMoveX, onPlayerMoveY, paddleHeight, positionX, positionY, difficulty, isFlashing, netTop }) => {
   const [isJumping, setIsJumping] = useState(false);
 
   useEffect(() => {
@@ -32,28 +32,21 @@ const AIOpponent = ({netTop, courtWidth, courtHeight, ballState, onPlayerMoveX, 
 
     const COURT_MID = courtWidth / 2;
     const baseLineY = courtHeight - paddleHeight;
-    const BALL_RADIUS = 10;
-    
-    // --- FIX: Define the function first ---
-    const followBall = () => {
-        // AI only runs when the ball is served
-        if (!ballState.isServed) {
-            // If not served, just schedule the next check and return
-            const timeoutId = setTimeout(followBall, 16); 
-            return () => clearTimeout(timeoutId);
-        };
+    const updateRate = 16; 
+
+    const tickAI = () => {
+        // FIX: AI should not move or launch anything if the ball is not served.
+        if (!ballState.isServed) return;
         
         // 2. Lateral Movement (Horizontal Tracking)
         const targetX = ballState.position.left - PADDLE_WIDTH / 2;
         const currentX = positionX;
         
-        // Only track if the ball is on the AI's side (or slightly over the net)
+        // Check if ball is on the AI's side or slightly over the net
         if (ballState.position.left >= COURT_MID - PADDLE_WIDTH / 2) {
             if (targetX < currentX - 5) { 
-              // Move Left
               onPlayerMoveX((prevX) => Math.max(COURT_MID, prevX - aiSpeed));
             } else if (targetX > currentX + 5) {
-              // Move Right
               onPlayerMoveX((prevX) => Math.min(courtWidth - PADDLE_WIDTH, prevX + aiSpeed));
             }
         }
@@ -73,23 +66,29 @@ const AIOpponent = ({netTop, courtWidth, courtHeight, ballState, onPlayerMoveX, 
                 setTimeout(() => {
                     onPlayerMoveY(baseLineY);
                     setIsJumping(false);
-                }, 400);
+                }, 400); 
             }
         }
-        
-        // Schedule the next check
-        const timeoutId = setTimeout(followBall, 16); 
-        return () => clearTimeout(timeoutId);
     };
-    // --- End of function definition ---
     
-    // 4. Start the loop by calling the function
-    const cleanUp = followBall();
+    // Start the continuous tick loop
+    const intervalId = setInterval(tickAI, updateRate);
     
-    // This return cleans up the initial timeout (if it was set)
-    return cleanUp;
+    return () => clearInterval(intervalId);
 
-  }, [ballState, positionX, positionY, courtWidth, courtHeight, paddleHeight, difficulty, onPlayerMoveX, onPlayerMoveY, isJumping]);
+  }, [
+      ballState.isServed, 
+      ballState.position.left, 
+      positionX, 
+      onPlayerMoveX, 
+      onPlayerMoveY, 
+      courtWidth, 
+      paddleHeight, 
+      difficulty, 
+      isJumping,
+      netTop,
+      courtHeight
+  ]);
 
 
   return (

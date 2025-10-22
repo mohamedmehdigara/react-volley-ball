@@ -34,17 +34,22 @@ const Player = ({ courtWidth, onPlayerMoveX, paddleHeight, positionX, positionY,
     const handleKeyDown = (event) => {
       // 1. Lateral Movement (Left/Right)
       if (event.key === 'ArrowLeft') {
-        // Player 1 max left = 0
         onPlayerMoveX((prevX) => Math.max(0, prevX - lateralSpeed));
       } else if (event.key === 'ArrowRight') {
-        // Player 1 max right = Net line (courtWidth / 2) - paddleWidth
         onPlayerMoveX((prevX) => Math.min(courtWidth / 2 - paddleWidth, prevX + lateralSpeed));
       }
 
       // 2. Jump/Hit (Up/Space)
       if ((event.key === 'ArrowUp' || event.key === ' ') && !isJumping) {
         setIsJumping(true);
-        onServe(); // Call the service/hit function from App.js
+        
+        // Call onServe: If the ball is stopped, it launches. 
+        // If the ball is moving, it just triggers the jump animation.
+        onServe(); 
+        
+        // The actual 'hit' physics is handled by Ball.js when the paddle's position (now jumping) 
+        // collides with the moving ball.
+        
         setTimeout(() => setIsJumping(false), 400); // Reset jump after animation time
       }
     };
