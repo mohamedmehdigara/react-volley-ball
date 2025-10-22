@@ -9,7 +9,6 @@ const BallDiv = styled.div`
   width: 20px;
   height: 20px;
   border-radius: 50%;
-  /* Volleyball colors: White background with subtle segments */
   background: radial-gradient(circle at 30% 30%, #fff, #f0f0f0);
   border: 1px solid #ccc;
   box-shadow: 0 0 5px rgba(0, 0, 0, 0.2);
@@ -24,12 +23,12 @@ const Ball = ({
   initialPosition = { top: 200, left: 400 },
   initialSpeed = 0,
   initialDirection = { x: 0, y: 0 }, 
-  ...P // Collect all other props
+  ...P 
 }) => {
-  // FIX: Use logical OR (||) to ensure state is an object even if prop is undefined
+  // Use fallbacks for state initialization (Fixes 'undefined' read errors)
   const [pos, setPos] = useState(initialPosition || { top: 200, left: 400 });
   const [speed, setSpeed] = useState(initialSpeed || 0);
-  const [dir, setDir] = useState(initialDirection || { x: 0, y: 0 }); // <-- CRITICAL FIX
+  const [dir, setDir] = useState(initialDirection || { x: 0, y: 0 }); 
   const [, setSpinY] = useState(0); 
 
   const R = 10; 
@@ -39,13 +38,12 @@ const Ball = ({
 
   // Resync state on parent change (e.g., serve/reset)
   useEffect(() => {
-    // Also use fallback values here in case the props change to undefined during reset
     setPos(P.initialPosition || { top: 200, left: 400 });
     setSpeed(P.initialSpeed || 0);
     setDir(P.initialDirection || { x: 0, y: 0 }); 
   }, [P.initialPosition, P.initialSpeed, P.initialDirection]);
 
-  // --- Collision Logic ---
+  // --- Collision Logic (remains same) ---
   const collision = (ballPos, paddle, isP1) => {
     if ((isP1 && ballPos.left > C) || (!isP1 && ballPos.left < C) || !paddle) return false;
 
@@ -68,14 +66,14 @@ const Ball = ({
   
   // --- Animation Loop ---
   const animate = () => {
-    // Ensure dir is valid before reading properties, though the state fix should prevent this.
-    if (!dir || speed === 0) {
+    // FIX: If speed is 0 and direction is also 0 (unserved state), continue the loop 
+    // without moving to await the serve state update from App.js.
+    if (speed === 0 && dir.x === 0 && dir.y === 0) {
        requestAnimationFrame(animate);
        return;
     }
 
     let s = speed * (1 - AR);
-    // This line should now be safe:
     let newDir = { x: dir.x, y: dir.y + G / 10 };
     let newTop = pos.top + s * newDir.y;
     let newLeft = pos.left + s * newDir.x;
