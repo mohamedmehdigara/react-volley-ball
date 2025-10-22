@@ -26,9 +26,10 @@ const Ball = ({
   initialDirection = { x: 0, y: 0 }, 
   ...P // Collect all other props
 }) => {
-  const [pos, setPos] = useState(initialPosition);
-  const [speed, setSpeed] = useState(initialSpeed);
-  const [dir, setDir] = useState(initialDirection);
+  // FIX: Use logical OR (||) to ensure state is an object even if prop is undefined
+  const [pos, setPos] = useState(initialPosition || { top: 200, left: 400 });
+  const [speed, setSpeed] = useState(initialSpeed || 0);
+  const [dir, setDir] = useState(initialDirection || { x: 0, y: 0 }); // <-- CRITICAL FIX
   const [, setSpinY] = useState(0); 
 
   const R = 10; 
@@ -38,10 +39,11 @@ const Ball = ({
 
   // Resync state on parent change (e.g., serve/reset)
   useEffect(() => {
-    setPos(initialPosition);
-    setSpeed(initialSpeed);
-    setDir(initialDirection);
-  }, [initialPosition, initialSpeed, initialDirection]);
+    // Also use fallback values here in case the props change to undefined during reset
+    setPos(P.initialPosition || { top: 200, left: 400 });
+    setSpeed(P.initialSpeed || 0);
+    setDir(P.initialDirection || { x: 0, y: 0 }); 
+  }, [P.initialPosition, P.initialSpeed, P.initialDirection]);
 
   // --- Collision Logic ---
   const collision = (ballPos, paddle, isP1) => {
@@ -66,14 +68,14 @@ const Ball = ({
   
   // --- Animation Loop ---
   const animate = () => {
-    // FIX: Only pause movement if speed is exactly zero, 
-    // but the loop MUST continue running to check for serve input from App.js
-    if (speed === 0 && !P.initialDirection.x && !P.initialDirection.y) {
+    // Ensure dir is valid before reading properties, though the state fix should prevent this.
+    if (!dir || speed === 0) {
        requestAnimationFrame(animate);
        return;
     }
 
     let s = speed * (1 - AR);
+    // This line should now be safe:
     let newDir = { x: dir.x, y: dir.y + G / 10 };
     let newTop = pos.top + s * newDir.y;
     let newLeft = pos.left + s * newDir.x;
@@ -90,7 +92,7 @@ const Ball = ({
       return;
     }
     
-    // 3. HORIZONTAL WALL BOUNCE (Kept for safety, though should rarely happen)
+    // 3. HORIZONTAL WALL BOUNCE
     if (newLeft - R <= 0 || newLeft + R >= P.courtWidth) {
         newDir.x = -newDir.x;
     }
