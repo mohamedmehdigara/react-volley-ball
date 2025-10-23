@@ -6,8 +6,11 @@ const G_EFFECTIVE = 0.5 / 10; // Gravity effect per frame
 const AIR_DAMPING = 0.9995; // Slight energy loss due to air resistance
 const PADDLE_COLLISION_DAMPING = 1.01; // Can slightly increase speed on hit for dynamics
 const NET_COLLISION_DAMPING = 0.7; // Significant speed loss on net hit
-const MAX_VERTICAL_INFLUENCE = 0.4; // Max vertical push/pull from spin/angle
-const COLLISION_DAMPING = 0.9; // Horizontal wall bounce speed loss
+const MAX_VERTICAL_INFLUENCE = 0.4; // Max vertical push/pull from spin/angle (affects Y direction)
+const HORIZONTAL_CURVE_FACTOR = 0.1; // Max horizontal curve based on hit position (affects X direction)
+const COLLISION_DAMPING = 0.9; // Horizontal wall and ceiling bounce speed loss
+const MAX_SPEED = 15; // Cap the ball speed for better playability
+const VISUAL_ROTATION_SCALE = 360 * 3; // Total degrees of rotation added on impact
 
 // --- Component Definition ---
 const Ball = ({
@@ -26,8 +29,11 @@ const Ball = ({
   paddleHeight,
   isServed,
 }) => {
-  // Local state for spin: this is what gets CALCULATED on collision and APPLIED on the next tick
+  // Local state for spin: calculated on collision, applied in the next physics frame (affects trajectory)
   const [spinY, setSpinY] = React.useState(0); 
+  // Local state for visual feedback (rotation effect)
+  const [visualRotation, setVisualRotation] = React.useState(0); 
+
   // Ref to hold all volatile data (props and state) for the stable animation loop
   const latestRef = useRef({});
 
@@ -39,16 +45,17 @@ const Ball = ({
     latestRef.current = {
       position, speed, direction, courtWidth, courtHeight, netTop,
       onPaddleCollision, outOfBounds, player1Paddle, player2Paddle,
-      onBallUpdate, paddleHeight, isServed, spinY, setSpinY,
+      onBallUpdate, paddleHeight, isServed, spinY, setSpinY, visualRotation, setVisualRotation,
       C, R,
     };
   });
 
 
   // --- PADDLE COLLISION LOGIC (Pure Geometry Check) ---
-  // Replaced external SAT library with native circle-rectangle collision logic
   const checkPaddleCollision = useCallback((ballPos, paddle, isP1, currentDir, currentSpeed) => {
     
+    const { R, C, onPaddleCollision, setSpinY, setVisualRotation, paddleHeight } = latestRef.current;
+
     // Ball's center coordinates (top/left props define the top-left corner of the ball div)
     const ballCenterX = ballPos.left + R;
     const ballCenterY = ballPos.top + R;
@@ -72,21 +79,27 @@ const Ball = ({
     if (distanceSquared < R * R) {
       
       // Collision occurred!
-      // 1. Calculate the vertical influence (Spin/Bounce Angle)
+      
+      // Calculate Hit Position
       // Hit Y relative to paddle center: negative for top half, positive for bottom half
       const hitY = ballCenterY - (paddle.y + paddle.height / 2);
       
       // Normalize hitY to be between -1 (top edge) and +1 (bottom edge)
       const normalizedHitY = hitY / (paddle.height / 2); 
       
-      // 2. Set the spin for the next frame
+      // 1. Set the vertical spin for the next frame (affects Y direction over time)
       setSpinY(normalizedHitY * MAX_VERTICAL_INFLUENCE); 
       
-      // 3. Calculate new direction vector (X always reverses)
-      const newX = -currentDir.x; 
+      // 2. Calculate new direction vector (X always reverses and slightly influenced by vertical hit position for curve)
+      const horizontalInfluence = normalizedHitY * HORIZONTAL_CURVE_FACTOR;
+      // Reverse direction, then apply curve influence
+      const newX = -currentDir.x + horizontalInfluence; 
 
-      // 4. Dampen the speed slightly and enforce a minimum speed
-      const newSpeed = Math.max(1, currentSpeed * PADDLE_COLLISION_DAMPING);
+      // 3. Dampen the speed slightly and enforce a minimum speed, capped by MAX_SPEED
+      const newSpeed = Math.min(MAX_SPEED, Math.max(1, currentSpeed * PADDLE_COLLISION_DAMPING));
+
+      // 4. Visual Spin Update: track accumulated rotation based on horizontal direction
+      setVisualRotation(prev => prev + (currentDir.x > 0 ? 1 : -1) * VISUAL_ROTATION_SCALE);
 
       // Callback to parent
       onPaddleCollision(isP1 ? 'player1' : 'player2');
@@ -94,7 +107,7 @@ const Ball = ({
       return { newDir: { x: newX, y: currentDir.y }, newSpeed, hit: true };
     }
     return { newDir: currentDir, newSpeed: currentSpeed, hit: false };
-  }, [onPaddleCollision, R, C, paddleHeight]);
+  }, [R, C, paddleHeight]);
 
 
   // --- Animation Loop Setup (Runs only once) ---
@@ -130,20 +143,28 @@ const Ball = ({
       };
       
       // Reset spin after application
-      setSpinY(0); 
+      latestRef.current.setSpinY(0); 
+      latestRef.current.spinY = 0; // Update ref immediately to prevent using stale spinY
 
       let newTop = currentPos.top + s * newDir.y;
       let newLeft = currentPos.left + s * newDir.x;
       
       // --- COLLISION CHECKS ---
+      
+      // 2. CEILING BOUNCE (Top edge of the ball)
+      if (newTop <= 0) {
+          newDir.y = -newDir.y;
+          newTop = 0; // Clamp position to prevent sticking
+          s = s * COLLISION_DAMPING; // Apply damping on bounce
+      }
 
-      // 2. FLOOR BOUNDARY SCORING (Ball bottom edge)
+      // 3. FLOOR BOUNDARY SCORING (Ball bottom edge)
       if (newTop + R * 2 >= courtHeight) {
         outOfBounds(newLeft + R < C ? 'player2' : 'player1');
         return; // End animation loop immediately for scoring
       }
 
-      // 3. NET COLLISION (Net is located at X=C, Y=netTop)
+      // 4. NET COLLISION (Net is located at X=C, Y=netTop)
       // Check if the ball center is near the net (within R+5 distance horizontally) and below netTop
       const ballCenter = newLeft + R;
       if (newTop + R >= netTop && Math.abs(ballCenter - C) < R + 5) {
@@ -164,7 +185,7 @@ const Ball = ({
         }
       }
       
-      // 4. HORIZONTAL WALL BOUNCE (Ball left/right edges)
+      // 5. HORIZONTAL WALL BOUNCE (Ball left/right edges)
       if (newLeft <= 0 || newLeft + R * 2 >= courtWidth) {
           newDir.x = -newDir.x;
           // Clamp position to ensure it doesn't get stuck in the wall
@@ -172,7 +193,7 @@ const Ball = ({
           s = s * COLLISION_DAMPING;
       }
 
-      // 5. PADDLE COLLISION (Updates newDir and s if collision occurs)
+      // 6. PADDLE COLLISION (Updates newDir and s if collision occurs)
       let result = checkPaddleCollision({ top: newTop, left: newLeft }, player1Paddle, true, newDir, s);
       newDir = result.newDir;
       s = result.newSpeed;
@@ -188,7 +209,7 @@ const Ball = ({
       newTop = currentPos.top + s * newDir.y;
       newLeft = currentPos.left + s * newDir.x;
 
-      // 6. Update Parent State
+      // 7. Update Parent State
       onBallUpdate({ position: { top: newTop, left: newLeft }, speed: s, direction: newDir });
       
       animationFrameId = requestAnimationFrame(animate);
@@ -205,12 +226,16 @@ const Ball = ({
     width: R * 2,
     height: R * 2,
     borderRadius: '50%',
-    background: 'radial-gradient(circle at 30% 30%, #fff, #f0f0f0)',
+    // Use a slight texture to make the spin visible
+    backgroundImage: 'radial-gradient(circle at 30% 30%, #fff, #f0f0f0), linear-gradient(45deg, #ccc 25%, transparent 25%, transparent 75%, #ccc 75%, #ccc)',
+    backgroundSize: '100%, 10px 10px',
     border: '1px solid #ccc',
-    boxShadow: '0 0 5px rgba(0, 0, 0, 0.2)',
+    boxShadow: '0 0 5px rgba(0, 0, 0, 0.5)',
     position: 'absolute',
     top: position.top,
     left: position.left,
+    // Apply the visual rotation effect
+    transform: `rotateZ(${visualRotation}deg)`, 
     transition: 'transform 0.01s linear', 
     willChange: 'transform, left, top',
   };
