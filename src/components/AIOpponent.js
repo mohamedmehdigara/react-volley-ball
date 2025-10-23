@@ -8,7 +8,7 @@ const BALL_RADIUS = 10;
 // CRITICAL: This physics constant must match the one used in Ball.js for prediction to work.
 const G_EFFECTIVE = 0.5 / 10; 
 const JUMP_DURATION_MS = 400; // Match the animation time in Player.js
-const UPDATE_RATE = 16; // 60 FPS update rate
+const UPDATE_RATE = 16; // 60 FPS update rate (approx 16.67ms)
 
 const AIOpponent = ({ courtWidth, courtHeight, ballState, onPlayerMoveX, onPlayerMoveY, paddleHeight, positionX, positionY, difficulty, isFlashing, netTop }) => {
   const [isJumping, setIsJumping] = useState(false);
@@ -29,10 +29,15 @@ const AIOpponent = ({ courtWidth, courtHeight, ballState, onPlayerMoveX, onPlaye
   // 1. Difficulty Settings (useMemo for stability)
   const { speed: maxSpeed, jumpThreshold, accuracy, dampingFactor, reactionDelayMs } = useMemo(() => {
     switch (difficulty) {
-      // Added reactionDelayMs: Easy is slower to react (more latency)
-      case 'easy': return { speed: 3, jumpThreshold: 0.2, accuracy: 0.3, dampingFactor: 0.15, reactionDelayMs: 250 };
-      case 'hard': return { speed: 8, jumpThreshold: 0.9, accuracy: 1.0, dampingFactor: 0.6, reactionDelayMs: 50 };
-      default: return { speed: 5, jumpThreshold: 0.5, accuracy: 0.7, dampingFactor: 0.3, reactionDelayMs: 150 };
+      case 'easy': 
+        return { speed: 3, jumpThreshold: 0.2, accuracy: 0.3, dampingFactor: 0.15, reactionDelayMs: 250 };
+      case 'hard': 
+        return { speed: 8, jumpThreshold: 0.9, accuracy: 0.95, dampingFactor: 0.6, reactionDelayMs: 50 }; // Slightly less than 100% accuracy
+      case 'lunatic': 
+        // Near-perfect settings: fast speed, instant reaction, max damping for instant movement
+        return { speed: 12, jumpThreshold: 1.0, accuracy: 1.0, dampingFactor: 1.0, reactionDelayMs: 0 }; 
+      default: 
+        return { speed: 5, jumpThreshold: 0.5, accuracy: 0.7, dampingFactor: 0.3, reactionDelayMs: 150 };
     }
   }, [difficulty]);
 
@@ -160,22 +165,37 @@ const AIOpponent = ({ courtWidth, courtHeight, ballState, onPlayerMoveX, onPlaye
 
         // --- Lateral Movement Logic ---
 
-        // 3a. Get Predicted Landing X (using baseLineY as the target Y)
+        // 3a. Get Predicted Landing X (using court floor Y)
         const { predictedX: predictedLandingX } = getTrajectoryData(ballState, courtHeight - BALL_RADIUS);
-        let targetXToAim = predictedLandingX;
         
-        // 3b. Blocking Strategy Override (Hard Difficulty Only)
+        let targetXToAim;
+        
+        // ** ENHANCEMENT: Blending Lateral Target **
+        const ballMidX = ballState.position.left;
+        // Blend factor: 0 when ball is near the net (rely on current X), 1 when ball is deep (rely on prediction)
+        // Since AI is on the left side (0 to COURT_MID), ballMidX closer to 0 means deeper.
+        const maxDist = COURT_MID;
+        const ballDistFromNet = COURT_MID - ballMidX;
+        // Blend more aggressively on higher difficulty
+        const predictionBlend = (0.5 + accuracy * 0.5); 
+        const blendFactor = Math.min(1, Math.max(0, (ballDistFromNet / maxDist) * predictionBlend));
+        
+        // targetXToAim is a weighted average of the ball's current X and the predicted landing X.
+        targetXToAim = ballMidX * (1 - blendFactor) + predictedLandingX * blendFactor;
+        
+        // 3b. Blocking Strategy Override (Hard/Lunatic Difficulty Only)
         const BLOCK_RANGE_X = COURT_MID + PADDLE_WIDTH * 2;
         const isBallHighAndNearNet = ballState.position.top < netTop + 50 && ballState.position.left < BLOCK_RANGE_X;
         
-        if (difficulty === 'hard' && isBallMovingToAI && isBallHighAndNearNet) {
+        if ((difficulty === 'hard' || difficulty === 'lunatic') && isBallMovingToAI && isBallHighAndNearNet) {
             // Override: Move to blocking position near the net
             targetXToAim = BLOCK_RANGE_X - PADDLE_HALF_WIDTH; 
         }
 
         // 3c. Introduce Inaccuracy
+        // Inaccuracy is now a fraction of the court half, scaled by (1 - accuracy)
         const maxInaccuracy = COURT_MID * (1 - accuracy);
-        const inaccuracyOffset = (Math.random() - 0.5) * maxInaccuracy * (1 - accuracy); 
+        const inaccuracyOffset = (Math.random() - 0.5) * maxInaccuracy; 
 
         const targetXCenter = targetXToAim + inaccuracyOffset;
         const finalTargetX = targetXCenter - PADDLE_HALF_WIDTH;
@@ -191,11 +211,12 @@ const AIOpponent = ({ courtWidth, courtHeight, ballState, onPlayerMoveX, onPlaye
         const moveDirection = actualMove > 0 ? 1 : -1;
 
         let newX = currentX;
-        if (Math.abs(distanceToTarget) > 5) { 
+        // Only move if the distance is significant enough (avoids jiggle when near target)
+        if (Math.abs(distanceToTarget) > 2) { 
             newX = currentX + moveAmount * moveDirection;
         }
 
-        // Apply movement with court clamping (AI must stay on its side)
+        // Apply movement with court clamping (AI must stay on its side, X < COURT_MID)
         onPlayerMoveX(Math.min(courtWidth - PADDLE_WIDTH, Math.max(COURT_MID, newX)));
 
 
@@ -211,14 +232,25 @@ const AIOpponent = ({ courtWidth, courtHeight, ballState, onPlayerMoveX, onPlaye
             const jumpTimeBufferMs = JUMP_DURATION_MS / 2;
             const requiredJumpLeadTimeMs = jumpTimeBufferMs + reactionDelayMs;
 
+            // ** ENHANCEMENT: Dynamic Jump Window **
+            // Higher accuracy = tighter window for perfect timing. Lunatic gets 5ms grace.
+            const baseWindow = 50; 
+            const jumpWindowBuffer = difficulty === 'lunatic' ? 5 : baseWindow * (1 - accuracy);
+            
             // Alignment check
+            // Higher accuracy means a smaller required overlap for the jump to be considered
             const alignmentThreshold = PADDLE_WIDTH * (1 + (1 - accuracy)); 
             const isAlignedForJump = Math.abs(predictedJumpX - (currentX + PADDLE_HALF_WIDTH)) < alignmentThreshold;
 
             const shouldJump = Math.random() < jumpThreshold;
 
-            // Trigger jump if: within the reaction window & aligned & probability passed.
-            if (shouldJump && isAlignedForJump && timeToOptimalHitMs > requiredJumpLeadTimeMs && timeToOptimalHitMs < requiredJumpLeadTimeMs + 50) {
+            // Trigger jump if: within the dynamic time window & aligned & probability passed.
+            const isWithinJumpWindow = (
+                timeToOptimalHitMs > requiredJumpLeadTimeMs - jumpWindowBuffer &&
+                timeToOptimalHitMs < requiredJumpLeadTimeMs + jumpWindowBuffer
+            );
+
+            if (shouldJump && isAlignedForJump && isWithinJumpWindow) {
                  // Clear any previous pending jump timeout to ensure only the latest prediction counts
                  if (reactionTimeoutRef.current) {
                      clearTimeout(reactionTimeoutRef.current);
@@ -226,7 +258,7 @@ const AIOpponent = ({ courtWidth, courtHeight, ballState, onPlayerMoveX, onPlaye
                  
                  // Use a slight delay to simulate the reaction time
                  reactionTimeoutRef.current = setTimeout(() => {
-                    // Re-check alignment before jumping to prevent stale jumps
+                    // Re-check alignment before jumping to prevent stale jumps (ball moved horizontally)
                     if (Math.abs(latest.current.ballState.position.left - (latest.current.positionX + PADDLE_HALF_WIDTH)) < alignmentThreshold) {
                         setJump(true);
                     }
@@ -248,7 +280,6 @@ const AIOpponent = ({ courtWidth, courtHeight, ballState, onPlayerMoveX, onPlaye
     };
 
   // The interval only depends on the stable function and constants, preventing frequent teardown.
-  // All frequently changing values are read from the `latest` ref.
   }, [getTrajectoryData, difficulty, COURT_MID, optimalHitY, courtHeight, netTop]);
 
 
