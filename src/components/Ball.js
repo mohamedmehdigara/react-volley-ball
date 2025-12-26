@@ -3,23 +3,24 @@ import PropTypes from 'prop-types';
 
 /**
  * --- Physics and Core Constants ---
- * Tweak these values to adjust the "feel" of the game.
  */
-const BALL_RADIUS = 10;                // Synchronized with LineJudge.js
-const G_EFFECTIVE = 0.5 / 10;          // Vertical acceleration (Gravity)
-const AIR_DAMPING = 0.9992;            // Velocity decay over time (Drag)
-const PADDLE_BOUNCE_BASE = 1.05;       // Base speed multiplier
-const SPIKE_INFLUENCE = 0.3;           // Bonus speed from paddle vertical movement
-const NET_DAMPING = 0.45;              // Speed multiplier on net hit (Loss)
-const WALL_FRICTION = 0.85;            // Speed multiplier on wall/ceiling bounce
-const MAX_SPEED = 24;                  // Terminal velocity cap
-const MIN_SPEED = 1.5;                 // Minimum speed to keep ball moving
+const BALL_RADIUS = 10;
+const G_EFFECTIVE = 0.5 / 10;
+const AIR_DAMPING = 0.9992;
+const PADDLE_BOUNCE_BASE = 1.05;
+const SPIKE_INFLUENCE = 0.35;          // Increased for more aggressive play
+const PERFECT_HIT_THRESHOLD = 5;       // Pixels from center for "Perfect Hit"
+const PERFECT_BOOST = 1.15;            // Speed multiplier for sweet-spot hits
+const NET_DAMPING = 0.45;
+const WALL_FRICTION = 0.85;
+const MAX_SPEED = 26;                  // Increased cap
+const MIN_SPEED = 1.5;
 
 // --- Spin & Curve (Magnus Effect) ---
-const MAX_HORIZONTAL_SPIN = 0.18;      // Max arc intensity
-const MAX_VERTICAL_IMPULSE = 2.0;      // Strength of spike/dig vertical push
-const SPIN_DECAY = 0.97;               // How fast the trajectory curve straightens out
-const VISUAL_ROTATION_SPEED = 360 * 4; // Visual rotation degrees on impact
+const MAX_HORIZONTAL_SPIN = 0.22;      
+const MAX_VERTICAL_IMPULSE = 2.2;      
+const SPIN_DECAY = 0.96;               
+const VISUAL_ROTATION_SPEED = 360 * 5; 
 
 // --- Utility: Vector Normalization ---
 const normalize = (v) => {
@@ -42,25 +43,26 @@ const Ball = ({
     paddleHeight,
     isServed,
 }) => {
-    // State for visual effects and trajectory manipulation
+    // Visual State
     const [curveX, setCurveX] = useState(0); 
     const [rotation, setRotation] = useState(0);
     const [isSquishing, setIsSquishing] = useState(false);
-    const [trail, setTrail] = useState([]); // Visual trail effect
+    const [isPerfect, setIsPerfect] = useState(false);
+    const [trail, setTrail] = useState([]); 
+    const [wobble, setWobble] = useState({ x: 0, y: 0 });
 
-    // Ref for high-frequency physics data to avoid React render lag in the loop
     const physicsRef = useRef({
         pos: position,
         spd: speed,
         dir: direction,
         p1PrevY: player1Paddle?.y || 0,
-        p2PrevY: player2Paddle?.y || 0
+        p2PrevY: player2Paddle?.y || 0,
+        frame: 0
     });
 
     const C = courtWidth / 2; 
     const R = BALL_RADIUS;
 
-    // Sync external props to physics ref
     useEffect(() => {
         physicsRef.current.pos = position;
         physicsRef.current.spd = speed;
@@ -68,8 +70,7 @@ const Ball = ({
     }, [position, speed, direction]);
 
     /**
-     * Handles complex collision geometry between ball and paddle.
-     * Includes "Spike" logic based on paddle velocity.
+     * Enhanced Collision with Sweet-Spot (Perfect Hit) Logic
      */
     const handlePaddleHit = useCallback((ballPos, paddle, isP1, currentDir, currentSpd) => {
         const ballCenterX = ballPos.left + R;
@@ -87,26 +88,31 @@ const Ball = ({
         if ((distX * distX) + (distY * distY) < R * R) {
             onPaddleCollision(isP1 ? 'player1' : 'player2');
             
-            // Calculate Paddle Velocity (Spike Factor)
             const prevY = isP1 ? physicsRef.current.p1PrevY : physicsRef.current.p2PrevY;
             const paddleVeloY = paddle.y - prevY;
             const spikeBonus = Math.abs(paddleVeloY) * SPIKE_INFLUENCE;
 
-            // Calculate hit precision (-1 top to 1 bottom)
+            // Perfect Hit Detection (Sweet Spot)
+            const distFromPaddleCenter = Math.abs(ballCenterY - (paddle.y + paddle.height / 2));
+            const isPerfectHit = distFromPaddleCenter < PERFECT_HIT_THRESHOLD;
+            
+            setIsPerfect(isPerfectHit);
+            if (isPerfectHit) setTimeout(() => setIsPerfect(false), 400);
+
             const hitOffset = (ballCenterY - (paddle.y + paddle.height / 2)) / (paddle.height / 2);
             
             setIsSquishing(true);
-            setTimeout(() => setIsSquishing(false), 100);
+            setTimeout(() => setIsSquishing(false), 120);
 
             setCurveX(hitOffset * MAX_HORIZONTAL_SPIN);
             setRotation(prev => prev + (currentDir.x > 0 ? 1 : -1) * VISUAL_ROTATION_SPEED);
 
             let nX = -currentDir.x; 
-            // Add vertical impulse based on hit offset AND paddle movement
-            let nY = -currentDir.y + (-hitOffset * MAX_VERTICAL_IMPULSE) + (paddleVeloY * 0.1);
+            let nY = -currentDir.y + (-hitOffset * MAX_VERTICAL_IMPULSE) + (paddleVeloY * 0.12);
 
             const nDir = normalize({ x: nX, y: nY });
-            const nSpd = Math.min(MAX_SPEED, Math.max(MIN_SPEED, currentSpd * PADDLE_BOUNCE_BASE + spikeBonus));
+            let nSpd = currentSpd * (isPerfectHit ? PERFECT_BOOST : PADDLE_BOUNCE_BASE) + spikeBonus;
+            nSpd = Math.min(MAX_SPEED, Math.max(MIN_SPEED, nSpd));
 
             return { dir: nDir, spd: nSpd, hit: true };
         }
@@ -118,20 +124,28 @@ const Ball = ({
      */
     useEffect(() => {
         let rafId;
-        let trailCounter = 0;
 
         const loop = () => {
             const state = physicsRef.current;
+            state.frame++;
+            
             if (state.spd <= 0 || !isServed) {
                 rafId = requestAnimationFrame(loop);
                 return;
             }
 
-            // 1. Update Paddle History for velocity tracking
             state.p1PrevY = player1Paddle?.y || state.p1PrevY;
             state.p2PrevY = player2Paddle?.y || state.p2PrevY;
 
-            // 2. Air Resistance & Dynamic Curve
+            // Air Wobble for high speed shots
+            if (state.spd > 15) {
+                const wX = Math.sin(state.frame * 0.5) * (state.spd * 0.05);
+                const wY = Math.cos(state.frame * 0.5) * (state.spd * 0.05);
+                setWobble({ x: wX, y: wY });
+            } else {
+                setWobble({ x: 0, y: 0 });
+            }
+
             let s = state.spd * AIR_DAMPING;
             let currentCurve = curveX;
             
@@ -145,7 +159,7 @@ const Ball = ({
             let nTop = state.pos.top + s * nextDir.y;
             let nLeft = state.pos.left + s * nextDir.x;
 
-            // 3. Collision Handling (Walls/Ceiling)
+            // Boundaries
             if (nTop <= 0) {
                 nextDir.y = -nextDir.y;
                 nTop = 0;
@@ -157,35 +171,38 @@ const Ball = ({
                 s *= WALL_FRICTION;
             }
 
-            // 4. Floor Detection (Scoring)
+            // Scoring
             if (nTop + R * 2 >= courtHeight) {
                 outOfBounds(nLeft + R < C ? 'player2' : 'player1');
                 return;
             }
 
-            // 5. Net Collision
+            // Net Collision
             const ballCenterX = nLeft + R;
             const ballCenterY = nTop + R;
-            if (ballCenterY >= netTop && Math.abs(ballCenterX - C) < R + 2.5) {
+            if (ballCenterY >= netTop && Math.abs(ballCenterX - C) < R + 3) {
                 const comingFromLeft = state.pos.left + R < C;
                 nextDir.x = -nextDir.x;
                 s *= NET_DAMPING;
-                nLeft = comingFromLeft ? (C - R - 3) : (C + R + 3);
+                nLeft = comingFromLeft ? (C - R - 4) : (C + R + 4);
             }
 
-            // 6. Paddle Collisions
+            // Paddle Collision
             let result = handlePaddleHit({ top: nTop, left: nLeft }, player1Paddle, true, nextDir, s);
             if (!result.hit) {
                 result = handlePaddleHit({ top: nTop, left: nLeft }, player2Paddle, false, result.dir, result.spd);
             }
 
-            // 7. Visual Trail Logic
-            trailCounter++;
-            if (trailCounter % 3 === 0) {
-                setTrail(prev => [{ top: nTop, left: nLeft, id: Date.now() }, ...prev].slice(0, 8));
+            // Dynamic Trail
+            if (state.frame % 2 === 0) {
+                setTrail(prev => [{ 
+                    top: nTop, 
+                    left: nLeft, 
+                    id: state.frame, 
+                    type: isPerfect ? 'perfect' : 'normal' 
+                }, ...prev].slice(0, 12));
             }
 
-            // Update Final State
             onBallUpdate({
                 position: { top: nTop, left: nLeft },
                 speed: result.spd,
@@ -197,48 +214,35 @@ const Ball = ({
 
         rafId = requestAnimationFrame(loop);
         return () => cancelAnimationFrame(rafId);
-    }, [handlePaddleHit, isServed, courtWidth, courtHeight, netTop, curveX, player1Paddle?.y, player2Paddle?.y]);
+    }, [handlePaddleHit, isServed, courtWidth, courtHeight, netTop, curveX, player1Paddle?.y, player2Paddle?.y, isPerfect]);
 
-    // Calculate Shadow Properties
     const distanceFromFloor = Math.max(0, courtHeight - (position.top + R * 2));
-    const shadowScale = Math.max(0.2, 1 - (distanceFromFloor / courtHeight));
-    const shadowOpacity = Math.max(0.1, 0.6 - (distanceFromFloor / (courtHeight * 0.5)));
+    const shadowScale = Math.max(0.1, 1 - (distanceFromFloor / courtHeight));
+    const shadowOpacity = Math.max(0, 0.5 - (distanceFromFloor / (courtHeight * 0.4)));
 
     const ballStyle = {
         width: R * 2,
         height: R * 2,
         borderRadius: '50%',
-        backgroundColor: '#fffbeb',
-        backgroundImage: `radial-gradient(circle at 30% 30%, #ffffff, #f59e0b)`,
-        border: '1px solid #fde68a',
-        boxShadow: `0 0 15px rgba(251, 146, 60, ${speed / MAX_SPEED})`,
+        backgroundColor: isPerfect ? '#fef08a' : '#fffbeb',
+        backgroundImage: isPerfect 
+            ? `radial-gradient(circle at 30% 30%, #ffffff, #eab308)`
+            : `radial-gradient(circle at 30% 30%, #ffffff, #f59e0b)`,
+        border: isPerfect ? '2px solid #facc15' : '1px solid #fde68a',
+        boxShadow: isPerfect 
+            ? `0 0 30px #facc15, 0 0 10px #eab308`
+            : `0 0 20px rgba(251, 146, 60, ${speed / MAX_SPEED})`,
         position: 'absolute',
-        top: position.top,
-        left: position.left,
-        transform: `rotateZ(${rotation}deg) scale(${isSquishing ? '1.2, 0.8' : '1, 1'})`,
-        transition: 'transform 0.1s linear',
+        top: position.top + wobble.y,
+        left: position.left + wobble.x,
+        transform: `rotateZ(${rotation}deg) scale(${isSquishing ? '1.3, 0.7' : '1, 1'})`,
+        transition: 'transform 0.08s linear, background-color 0.2s ease',
         willChange: 'transform, left, top',
         zIndex: 10,
     };
 
-    const shadowStyle = {
-        width: R * 2.5,
-        height: R * 0.6,
-        backgroundColor: 'rgba(0,0,0,1)',
-        borderRadius: '50%',
-        position: 'absolute',
-        left: position.left - R * 0.25,
-        top: courtHeight - R * 0.3,
-        transform: `scale(${shadowScale})`,
-        opacity: shadowOpacity,
-        filter: 'blur(4px)',
-        zIndex: 5,
-        pointerEvents: 'none'
-    };
-
     return (
         <>
-            {/* Trail Particles */}
             {trail.map((t, i) => (
                 <div key={t.id} style={{
                     position: 'absolute',
@@ -247,19 +251,49 @@ const Ball = ({
                     width: R * 2,
                     height: R * 2,
                     borderRadius: '50%',
-                    backgroundColor: '#fb923c',
-                    opacity: (trail.length - i) / (trail.length * 4),
+                    backgroundColor: t.type === 'perfect' ? '#fde047' : '#fb923c',
+                    opacity: (trail.length - i) / (trail.length * 5),
                     transform: `scale(${1 - i / trail.length})`,
+                    filter: t.type === 'perfect' ? 'blur(2px)' : 'none',
                     pointerEvents: 'none',
                     zIndex: 8
                 }} />
             ))}
             
-            {/* Shadow */}
-            <div style={shadowStyle} />
+            <div style={{
+                width: R * 3,
+                height: R * 0.8,
+                backgroundColor: 'rgba(0,0,0,0.8)',
+                borderRadius: '50%',
+                position: 'absolute',
+                left: position.left - R * 0.5,
+                top: courtHeight - R * 0.4,
+                transform: `scale(${shadowScale})`,
+                opacity: shadowOpacity,
+                filter: 'blur(5px)',
+                zIndex: 5,
+                pointerEvents: 'none'
+            }} />
             
-            {/* Ball */}
-            <div style={ballStyle} />
+            <div style={ballStyle}>
+                {/* Visual "Stitches" for ball rotation effect */}
+                <div style={{
+                    position: 'absolute',
+                    width: '100%',
+                    height: '2px',
+                    background: 'rgba(0,0,0,0.1)',
+                    top: '50%',
+                    transform: 'rotate(45deg)'
+                }} />
+                <div style={{
+                    position: 'absolute',
+                    width: '100%',
+                    height: '2px',
+                    background: 'rgba(0,0,0,0.1)',
+                    top: '50%',
+                    transform: 'rotate(-45deg)'
+                }} />
+            </div>
         </>
     );
 };
