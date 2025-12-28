@@ -8,18 +8,18 @@ const BALL_RADIUS = 10;
 const G_EFFECTIVE = 0.5 / 10;
 const AIR_DAMPING = 0.9992;
 const PADDLE_BOUNCE_BASE = 1.05;
-const SPIKE_INFLUENCE = 0.35;          // Increased for more aggressive play
-const PERFECT_HIT_THRESHOLD = 5;       // Pixels from center for "Perfect Hit"
-const PERFECT_BOOST = 1.15;            // Speed multiplier for sweet-spot hits
+const SPIKE_INFLUENCE = 0.35;          // Influence of paddle vertical velocity on ball speed
+const PERFECT_HIT_THRESHOLD = 6;       // Pixels from center for "Perfect Hit"
+const PERFECT_BOOST = 1.25;            // Speed multiplier for sweet-spot hits
 const NET_DAMPING = 0.45;
 const WALL_FRICTION = 0.85;
-const MAX_SPEED = 26;                  // Increased cap
+const MAX_SPEED = 28;                  // High speed cap for intense rallies
 const MIN_SPEED = 1.5;
 
 // --- Spin & Curve (Magnus Effect) ---
-const MAX_HORIZONTAL_SPIN = 0.22;      
+const MAX_HORIZONTAL_SPIN = 0.25;      
 const MAX_VERTICAL_IMPULSE = 2.2;      
-const SPIN_DECAY = 0.96;               
+const SPIN_DECAY = 0.97;               
 const VISUAL_ROTATION_SPEED = 360 * 5; 
 
 // --- Utility: Vector Normalization ---
@@ -43,7 +43,7 @@ const Ball = ({
     paddleHeight,
     isServed,
 }) => {
-    // Visual State
+    // Visual & State Effects
     const [curveX, setCurveX] = useState(0); 
     const [rotation, setRotation] = useState(0);
     const [isSquishing, setIsSquishing] = useState(false);
@@ -63,6 +63,7 @@ const Ball = ({
     const C = courtWidth / 2; 
     const R = BALL_RADIUS;
 
+    // Synchronize ref with props for the animation loop
     useEffect(() => {
         physicsRef.current.pos = position;
         physicsRef.current.spd = speed;
@@ -76,7 +77,8 @@ const Ball = ({
         const ballCenterX = ballPos.left + R;
         const ballCenterY = ballPos.top + R;
 
-        if (!paddle || (isP1 && ballCenterX < C) || (!isP1 && ballCenterX > C)) {
+        // Ensure ball is on the correct side for the paddle to interact
+        if (!paddle || (isP1 && ballCenterX > C) || (!isP1 && ballCenterX < C)) {
             return { dir: currentDir, spd: currentSpd, hit: false };
         }
 
@@ -97,18 +99,21 @@ const Ball = ({
             const isPerfectHit = distFromPaddleCenter < PERFECT_HIT_THRESHOLD;
             
             setIsPerfect(isPerfectHit);
-            if (isPerfectHit) setTimeout(() => setIsPerfect(false), 400);
+            if (isPerfectHit) setTimeout(() => setIsPerfect(false), 500);
 
             const hitOffset = (ballCenterY - (paddle.y + paddle.height / 2)) / (paddle.height / 2);
             
+            // Visual Squish Effect
             setIsSquishing(true);
-            setTimeout(() => setIsSquishing(false), 120);
+            setTimeout(() => setIsSquishing(false), 100);
 
+            // Apply Spin and Visual Rotation
             setCurveX(hitOffset * MAX_HORIZONTAL_SPIN);
             setRotation(prev => prev + (currentDir.x > 0 ? 1 : -1) * VISUAL_ROTATION_SPEED);
 
+            // Calculate new velocity
             let nX = -currentDir.x; 
-            let nY = -currentDir.y + (-hitOffset * MAX_VERTICAL_IMPULSE) + (paddleVeloY * 0.12);
+            let nY = -currentDir.y + (-hitOffset * MAX_VERTICAL_IMPULSE) + (paddleVeloY * 0.15);
 
             const nDir = normalize({ x: nX, y: nY });
             let nSpd = currentSpd * (isPerfectHit ? PERFECT_BOOST : PADDLE_BOUNCE_BASE) + spikeBonus;
@@ -137,20 +142,21 @@ const Ball = ({
             state.p1PrevY = player1Paddle?.y || state.p1PrevY;
             state.p2PrevY = player2Paddle?.y || state.p2PrevY;
 
-            // Air Wobble for high speed shots
-            if (state.spd > 15) {
-                const wX = Math.sin(state.frame * 0.5) * (state.spd * 0.05);
-                const wY = Math.cos(state.frame * 0.5) * (state.spd * 0.05);
+            // 1. Kinetic Wobble (Air Turbulence at high speeds)
+            if (state.spd > 18) {
+                const wX = Math.sin(state.frame * 0.4) * (state.spd * 0.04);
+                const wY = Math.cos(state.frame * 0.4) * (state.spd * 0.04);
                 setWobble({ x: wX, y: wY });
             } else {
                 setWobble({ x: 0, y: 0 });
             }
 
+            // 2. Trajectory Calculation (Gravity + Spin/Magnus Effect)
             let s = state.spd * AIR_DAMPING;
             let currentCurve = curveX;
             
             let nextDir = normalize({ 
-                x: state.dir.x + currentCurve, 
+                x: state.dir.x + (currentCurve * (s / 10)), 
                 y: state.dir.y + G_EFFECTIVE 
             });
 
@@ -159,7 +165,7 @@ const Ball = ({
             let nTop = state.pos.top + s * nextDir.y;
             let nLeft = state.pos.left + s * nextDir.x;
 
-            // Boundaries
+            // 3. Wall & Ceiling Collisions
             if (nTop <= 0) {
                 nextDir.y = -nextDir.y;
                 nTop = 0;
@@ -171,38 +177,39 @@ const Ball = ({
                 s *= WALL_FRICTION;
             }
 
-            // Scoring
+            // 4. Floor/Scoring Boundary
             if (nTop + R * 2 >= courtHeight) {
                 outOfBounds(nLeft + R < C ? 'player2' : 'player1');
                 return;
             }
 
-            // Net Collision
+            // 5. Net Collision Physics
             const ballCenterX = nLeft + R;
             const ballCenterY = nTop + R;
-            if (ballCenterY >= netTop && Math.abs(ballCenterX - C) < R + 3) {
+            if (ballCenterY >= netTop && Math.abs(ballCenterX - C) < R + 4) {
                 const comingFromLeft = state.pos.left + R < C;
                 nextDir.x = -nextDir.x;
                 s *= NET_DAMPING;
-                nLeft = comingFromLeft ? (C - R - 4) : (C + R + 4);
+                nLeft = comingFromLeft ? (C - R - 5) : (C + R + 5);
             }
 
-            // Paddle Collision
+            // 6. Paddle Interaction
             let result = handlePaddleHit({ top: nTop, left: nLeft }, player1Paddle, true, nextDir, s);
             if (!result.hit) {
                 result = handlePaddleHit({ top: nTop, left: nLeft }, player2Paddle, false, result.dir, result.spd);
             }
 
-            // Dynamic Trail
+            // 7. Visual Trail Generation
             if (state.frame % 2 === 0) {
                 setTrail(prev => [{ 
                     top: nTop, 
                     left: nLeft, 
                     id: state.frame, 
                     type: isPerfect ? 'perfect' : 'normal' 
-                }, ...prev].slice(0, 12));
+                }, ...prev].slice(0, 15));
             }
 
+            // 8. Update state for rendering
             onBallUpdate({
                 position: { top: nTop, left: nLeft },
                 speed: result.spd,
@@ -216,9 +223,10 @@ const Ball = ({
         return () => cancelAnimationFrame(rafId);
     }, [handlePaddleHit, isServed, courtWidth, courtHeight, netTop, curveX, player1Paddle?.y, player2Paddle?.y, isPerfect]);
 
+    // UI Calculations for Shadow
     const distanceFromFloor = Math.max(0, courtHeight - (position.top + R * 2));
     const shadowScale = Math.max(0.1, 1 - (distanceFromFloor / courtHeight));
-    const shadowOpacity = Math.max(0, 0.5 - (distanceFromFloor / (courtHeight * 0.4)));
+    const shadowOpacity = Math.max(0, 0.4 - (distanceFromFloor / (courtHeight * 0.5)));
 
     const ballStyle = {
         width: R * 2,
@@ -230,19 +238,20 @@ const Ball = ({
             : `radial-gradient(circle at 30% 30%, #ffffff, #f59e0b)`,
         border: isPerfect ? '2px solid #facc15' : '1px solid #fde68a',
         boxShadow: isPerfect 
-            ? `0 0 30px #facc15, 0 0 10px #eab308`
+            ? `0 0 40px #facc15, 0 0 15px #eab308`
             : `0 0 20px rgba(251, 146, 60, ${speed / MAX_SPEED})`,
         position: 'absolute',
         top: position.top + wobble.y,
         left: position.left + wobble.x,
-        transform: `rotateZ(${rotation}deg) scale(${isSquishing ? '1.3, 0.7' : '1, 1'})`,
-        transition: 'transform 0.08s linear, background-color 0.2s ease',
+        transform: `rotateZ(${rotation}deg) scale(${isSquishing ? '1.4, 0.7' : '1, 1'})`,
+        transition: 'transform 0.05s linear, background-color 0.2s ease',
         willChange: 'transform, left, top',
         zIndex: 10,
     };
 
     return (
         <>
+            {/* Motion Trail */}
             {trail.map((t, i) => (
                 <div key={t.id} style={{
                     position: 'absolute',
@@ -252,36 +261,37 @@ const Ball = ({
                     height: R * 2,
                     borderRadius: '50%',
                     backgroundColor: t.type === 'perfect' ? '#fde047' : '#fb923c',
-                    opacity: (trail.length - i) / (trail.length * 5),
+                    opacity: (trail.length - i) / (trail.length * 6),
                     transform: `scale(${1 - i / trail.length})`,
-                    filter: t.type === 'perfect' ? 'blur(2px)' : 'none',
+                    filter: t.type === 'perfect' ? 'blur(3px)' : 'blur(1px)',
                     pointerEvents: 'none',
                     zIndex: 8
                 }} />
             ))}
             
+            {/* Ground Shadow */}
             <div style={{
                 width: R * 3,
                 height: R * 0.8,
-                backgroundColor: 'rgba(0,0,0,0.8)',
+                backgroundColor: 'rgba(0,0,0,0.6)',
                 borderRadius: '50%',
                 position: 'absolute',
                 left: position.left - R * 0.5,
                 top: courtHeight - R * 0.4,
                 transform: `scale(${shadowScale})`,
                 opacity: shadowOpacity,
-                filter: 'blur(5px)',
+                filter: 'blur(6px)',
                 zIndex: 5,
                 pointerEvents: 'none'
             }} />
             
+            {/* Main Ball Component */}
             <div style={ballStyle}>
-                {/* Visual "Stitches" for ball rotation effect */}
                 <div style={{
                     position: 'absolute',
                     width: '100%',
                     height: '2px',
-                    background: 'rgba(0,0,0,0.1)',
+                    background: 'rgba(0,0,0,0.12)',
                     top: '50%',
                     transform: 'rotate(45deg)'
                 }} />
@@ -289,7 +299,7 @@ const Ball = ({
                     position: 'absolute',
                     width: '100%',
                     height: '2px',
-                    background: 'rgba(0,0,0,0.1)',
+                    background: 'rgba(0,0,0,0.12)',
                     top: '50%',
                     transform: 'rotate(-45deg)'
                 }} />
