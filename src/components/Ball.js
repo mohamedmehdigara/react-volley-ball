@@ -8,19 +8,19 @@ const BALL_RADIUS = 10;
 const G_EFFECTIVE = 0.5 / 10;
 const AIR_DAMPING = 0.9992;
 const PADDLE_BOUNCE_BASE = 1.05;
-const SPIKE_INFLUENCE = 0.35;          // Influence of paddle vertical velocity on ball speed
-const PERFECT_HIT_THRESHOLD = 6;       // Pixels from center for "Perfect Hit"
-const PERFECT_BOOST = 1.25;            // Speed multiplier for sweet-spot hits
-const NET_DAMPING = 0.45;
-const WALL_FRICTION = 0.85;
-const MAX_SPEED = 28;                  // High speed cap for intense rallies
-const MIN_SPEED = 1.5;
+const SPIKE_INFLUENCE = 0.38;          // Increased for sharper volleys
+const PERFECT_HIT_THRESHOLD = 7;       // Slightly wider sweet spot for satisfying hits
+const PERFECT_BOOST = 1.30;            // More aggressive speed multiplier
+const NET_DAMPING = 0.40;
+const WALL_FRICTION = 0.92;            // Slightly higher to maintain "back and forth" momentum
+const MAX_SPEED = 32;                  // Raised cap for high-level play
+const MIN_SPEED = 2.0;
 
 // --- Spin & Curve (Magnus Effect) ---
-const MAX_HORIZONTAL_SPIN = 0.25;      
-const MAX_VERTICAL_IMPULSE = 2.2;      
-const SPIN_DECAY = 0.97;               
-const VISUAL_ROTATION_SPEED = 360 * 5; 
+const MAX_HORIZONTAL_SPIN = 0.28;      
+const MAX_VERTICAL_IMPULSE = 2.5;      
+const SPIN_DECAY = 0.96;               
+const VISUAL_ROTATION_SPEED = 360 * 6; 
 
 // --- Utility: Vector Normalization ---
 const normalize = (v) => {
@@ -49,6 +49,7 @@ const Ball = ({
     const [isSquishing, setIsSquishing] = useState(false);
     const [isPerfect, setIsPerfect] = useState(false);
     const [trail, setTrail] = useState([]); 
+    const [particles, setParticles] = useState([]); // New: Impact particles
     const [wobble, setWobble] = useState({ x: 0, y: 0 });
 
     const physicsRef = useRef({
@@ -63,21 +64,42 @@ const Ball = ({
     const C = courtWidth / 2; 
     const R = BALL_RADIUS;
 
-    // Synchronize ref with props for the animation loop
     useEffect(() => {
         physicsRef.current.pos = position;
         physicsRef.current.spd = speed;
         physicsRef.current.dir = direction;
     }, [position, speed, direction]);
 
+    // Clean up particles
+    useEffect(() => {
+        if (particles.length > 0) {
+            const timer = setTimeout(() => {
+                setParticles(prev => prev.filter(p => p.life > 0));
+            }, 50);
+            return () => clearTimeout(timer);
+        }
+    }, [particles]);
+
+    const createParticles = (x, y, color) => {
+        const newParticles = Array.from({ length: 8 }).map((_, i) => ({
+            id: Math.random(),
+            x,
+            y,
+            vx: (Math.random() - 0.5) * 10,
+            vy: (Math.random() - 0.5) * 10,
+            life: 1.0,
+            color
+        }));
+        setParticles(prev => [...prev, ...newParticles]);
+    };
+
     /**
-     * Enhanced Collision with Sweet-Spot (Perfect Hit) Logic
+     * Enhanced Collision Logic
      */
     const handlePaddleHit = useCallback((ballPos, paddle, isP1, currentDir, currentSpd) => {
         const ballCenterX = ballPos.left + R;
         const ballCenterY = ballPos.top + R;
 
-        // Ensure ball is on the correct side for the paddle to interact
         if (!paddle || (isP1 && ballCenterX > C) || (!isP1 && ballCenterX < C)) {
             return { dir: currentDir, spd: currentSpd, hit: false };
         }
@@ -94,26 +116,25 @@ const Ball = ({
             const paddleVeloY = paddle.y - prevY;
             const spikeBonus = Math.abs(paddleVeloY) * SPIKE_INFLUENCE;
 
-            // Perfect Hit Detection (Sweet Spot)
             const distFromPaddleCenter = Math.abs(ballCenterY - (paddle.y + paddle.height / 2));
             const isPerfectHit = distFromPaddleCenter < PERFECT_HIT_THRESHOLD;
             
             setIsPerfect(isPerfectHit);
-            if (isPerfectHit) setTimeout(() => setIsPerfect(false), 500);
+            if (isPerfectHit) {
+                createParticles(ballCenterX, ballCenterY, '#facc15');
+                setTimeout(() => setIsPerfect(false), 600);
+            }
 
             const hitOffset = (ballCenterY - (paddle.y + paddle.height / 2)) / (paddle.height / 2);
             
-            // Visual Squish Effect
             setIsSquishing(true);
-            setTimeout(() => setIsSquishing(false), 100);
+            setTimeout(() => setIsSquishing(false), 120);
 
-            // Apply Spin and Visual Rotation
             setCurveX(hitOffset * MAX_HORIZONTAL_SPIN);
             setRotation(prev => prev + (currentDir.x > 0 ? 1 : -1) * VISUAL_ROTATION_SPEED);
 
-            // Calculate new velocity
             let nX = -currentDir.x; 
-            let nY = -currentDir.y + (-hitOffset * MAX_VERTICAL_IMPULSE) + (paddleVeloY * 0.15);
+            let nY = -currentDir.y + (-hitOffset * MAX_VERTICAL_IMPULSE) + (paddleVeloY * 0.18);
 
             const nDir = normalize({ x: nX, y: nY });
             let nSpd = currentSpd * (isPerfectHit ? PERFECT_BOOST : PADDLE_BOUNCE_BASE) + spikeBonus;
@@ -142,21 +163,22 @@ const Ball = ({
             state.p1PrevY = player1Paddle?.y || state.p1PrevY;
             state.p2PrevY = player2Paddle?.y || state.p2PrevY;
 
-            // 1. Kinetic Wobble (Air Turbulence at high speeds)
-            if (state.spd > 18) {
-                const wX = Math.sin(state.frame * 0.4) * (state.spd * 0.04);
-                const wY = Math.cos(state.frame * 0.4) * (state.spd * 0.04);
+            // Kinetic Wobble
+            if (state.spd > 20) {
+                const intensity = (state.spd - 20) * 0.15;
+                const wX = Math.sin(state.frame * 0.6) * intensity;
+                const wY = Math.cos(state.frame * 0.6) * intensity;
                 setWobble({ x: wX, y: wY });
             } else {
                 setWobble({ x: 0, y: 0 });
             }
 
-            // 2. Trajectory Calculation (Gravity + Spin/Magnus Effect)
             let s = state.spd * AIR_DAMPING;
             let currentCurve = curveX;
             
+            // Apply air resistance / Magnus effect
             let nextDir = normalize({ 
-                x: state.dir.x + (currentCurve * (s / 10)), 
+                x: state.dir.x + (currentCurve * (s / 8)), 
                 y: state.dir.y + G_EFFECTIVE 
             });
 
@@ -165,51 +187,61 @@ const Ball = ({
             let nTop = state.pos.top + s * nextDir.y;
             let nLeft = state.pos.left + s * nextDir.x;
 
-            // 3. Wall & Ceiling Collisions
+            // Boundaries: Ceiling and Walls (Back and Forth Bounce Logic)
             if (nTop <= 0) {
                 nextDir.y = -nextDir.y;
                 nTop = 0;
                 s *= WALL_FRICTION;
+                createParticles(nLeft + R, 0, '#94a3b8');
             }
-            if (nLeft <= 0 || nLeft + R * 2 >= courtWidth) {
-                nextDir.x = -nextDir.x;
-                nLeft = Math.max(0, Math.min(courtWidth - R * 2, nLeft));
+            
+            // Handle Horizontal Bouncing back and forth
+            if (nLeft <= 0) {
+                nextDir.x = Math.abs(nextDir.x); // Force move right
+                nLeft = 0;
                 s *= WALL_FRICTION;
+                createParticles(0, nTop + R, '#94a3b8');
+            } else if (nLeft + R * 2 >= courtWidth) {
+                nextDir.x = -Math.abs(nextDir.x); // Force move left
+                nLeft = courtWidth - R * 2;
+                s *= WALL_FRICTION;
+                createParticles(courtWidth, nTop + R, '#94a3b8');
             }
 
-            // 4. Floor/Scoring Boundary
+            // Floor/Scoring
             if (nTop + R * 2 >= courtHeight) {
                 outOfBounds(nLeft + R < C ? 'player2' : 'player1');
                 return;
             }
 
-            // 5. Net Collision Physics
+            // Net Collision
             const ballCenterX = nLeft + R;
             const ballCenterY = nTop + R;
-            if (ballCenterY >= netTop && Math.abs(ballCenterX - C) < R + 4) {
+            if (ballCenterY >= netTop && Math.abs(ballCenterX - C) < R + 5) {
                 const comingFromLeft = state.pos.left + R < C;
                 nextDir.x = -nextDir.x;
                 s *= NET_DAMPING;
-                nLeft = comingFromLeft ? (C - R - 5) : (C + R + 5);
+                nLeft = comingFromLeft ? (C - R - 6) : (C + R + 6);
+                createParticles(ballCenterX, ballCenterY, '#334155');
             }
 
-            // 6. Paddle Interaction
+            // Paddle Interaction
             let result = handlePaddleHit({ top: nTop, left: nLeft }, player1Paddle, true, nextDir, s);
             if (!result.hit) {
                 result = handlePaddleHit({ top: nTop, left: nLeft }, player2Paddle, false, result.dir, result.spd);
             }
 
-            // 7. Visual Trail Generation
+            // Trail Logic
             if (state.frame % 2 === 0) {
                 setTrail(prev => [{ 
                     top: nTop, 
                     left: nLeft, 
                     id: state.frame, 
-                    type: isPerfect ? 'perfect' : 'normal' 
-                }, ...prev].slice(0, 15));
+                    type: isPerfect ? 'perfect' : (state.spd > 22 ? 'fast' : 'normal'),
+                    speed: state.spd
+                }, ...prev].slice(0, 18));
             }
 
-            // 8. Update state for rendering
             onBallUpdate({
                 position: { top: nTop, left: nLeft },
                 speed: result.spd,
@@ -223,10 +255,9 @@ const Ball = ({
         return () => cancelAnimationFrame(rafId);
     }, [handlePaddleHit, isServed, courtWidth, courtHeight, netTop, curveX, player1Paddle?.y, player2Paddle?.y, isPerfect]);
 
-    // UI Calculations for Shadow
     const distanceFromFloor = Math.max(0, courtHeight - (position.top + R * 2));
     const shadowScale = Math.max(0.1, 1 - (distanceFromFloor / courtHeight));
-    const shadowOpacity = Math.max(0, 0.4 - (distanceFromFloor / (courtHeight * 0.5)));
+    const shadowOpacity = Math.max(0, 0.45 - (distanceFromFloor / (courtHeight * 0.4)));
 
     const ballStyle = {
         width: R * 2,
@@ -234,23 +265,40 @@ const Ball = ({
         borderRadius: '50%',
         backgroundColor: isPerfect ? '#fef08a' : '#fffbeb',
         backgroundImage: isPerfect 
-            ? `radial-gradient(circle at 30% 30%, #ffffff, #eab308)`
-            : `radial-gradient(circle at 30% 30%, #ffffff, #f59e0b)`,
-        border: isPerfect ? '2px solid #facc15' : '1px solid #fde68a',
+            ? `radial-gradient(circle at 35% 35%, #ffffff, #facc15, #ca8a04)`
+            : `radial-gradient(circle at 35% 35%, #ffffff, #fbbf24, #d97706)`,
+        border: isPerfect ? '2px solid #eab308' : '1px solid #fcd34d',
         boxShadow: isPerfect 
-            ? `0 0 40px #facc15, 0 0 15px #eab308`
-            : `0 0 20px rgba(251, 146, 60, ${speed / MAX_SPEED})`,
+            ? `0 0 50px #facc15, 0 0 20px #ca8a04, 0 0 100px rgba(250, 204, 21, 0.3)`
+            : `0 0 ${10 + (speed / 2)}px rgba(251, 191, 36, ${speed / MAX_SPEED})`,
         position: 'absolute',
         top: position.top + wobble.y,
         left: position.left + wobble.x,
-        transform: `rotateZ(${rotation}deg) scale(${isSquishing ? '1.4, 0.7' : '1, 1'})`,
-        transition: 'transform 0.05s linear, background-color 0.2s ease',
+        transform: `rotateZ(${rotation}deg) scale(${isSquishing ? '1.5, 0.6' : '1, 1'})`,
+        transition: 'transform 0.04s linear, background-color 0.2s ease',
         willChange: 'transform, left, top',
         zIndex: 10,
     };
 
     return (
         <>
+            {/* Particles */}
+            {particles.map(p => (
+                <div key={p.id} style={{
+                    position: 'absolute',
+                    left: p.x,
+                    top: p.y,
+                    width: 4,
+                    height: 4,
+                    backgroundColor: p.color,
+                    borderRadius: '50%',
+                    pointerEvents: 'none',
+                    zIndex: 15,
+                    transform: `translate(${(1 - p.life) * p.vx * 10}px, ${(1 - p.life) * p.vy * 10}px) scale(${p.life})`,
+                    opacity: p.life,
+                }} />
+            ))}
+
             {/* Motion Trail */}
             {trail.map((t, i) => (
                 <div key={t.id} style={{
@@ -260,10 +308,10 @@ const Ball = ({
                     width: R * 2,
                     height: R * 2,
                     borderRadius: '50%',
-                    backgroundColor: t.type === 'perfect' ? '#fde047' : '#fb923c',
-                    opacity: (trail.length - i) / (trail.length * 6),
-                    transform: `scale(${1 - i / trail.length})`,
-                    filter: t.type === 'perfect' ? 'blur(3px)' : 'blur(1px)',
+                    backgroundColor: t.type === 'perfect' ? '#facc15' : (t.type === 'fast' ? '#fb923c' : '#fbbf24'),
+                    opacity: (trail.length - i) / (trail.length * 8),
+                    transform: `scale(${1 - (i / trail.length) * 0.8})`,
+                    filter: `blur(${t.type === 'normal' ? '1px' : '4px'})`,
                     pointerEvents: 'none',
                     zIndex: 8
                 }} />
@@ -271,37 +319,49 @@ const Ball = ({
             
             {/* Ground Shadow */}
             <div style={{
-                width: R * 3,
+                width: R * 3.5,
                 height: R * 0.8,
-                backgroundColor: 'rgba(0,0,0,0.6)',
+                backgroundColor: 'rgba(0,0,0,0.7)',
                 borderRadius: '50%',
                 position: 'absolute',
-                left: position.left - R * 0.5,
+                left: position.left - R * 0.75,
                 top: courtHeight - R * 0.4,
                 transform: `scale(${shadowScale})`,
                 opacity: shadowOpacity,
-                filter: 'blur(6px)',
+                filter: 'blur(8px)',
                 zIndex: 5,
                 pointerEvents: 'none'
             }} />
             
             {/* Main Ball Component */}
             <div style={ballStyle}>
+                {/* Visual Stitches */}
                 <div style={{
                     position: 'absolute',
                     width: '100%',
-                    height: '2px',
-                    background: 'rgba(0,0,0,0.12)',
+                    height: '1px',
+                    background: 'rgba(0,0,0,0.15)',
                     top: '50%',
                     transform: 'rotate(45deg)'
                 }} />
                 <div style={{
                     position: 'absolute',
                     width: '100%',
-                    height: '2px',
-                    background: 'rgba(0,0,0,0.12)',
+                    height: '1px',
+                    background: 'rgba(0,0,0,0.15)',
                     top: '50%',
                     transform: 'rotate(-45deg)'
+                }} />
+                {/* Shine Overlay */}
+                <div style={{
+                    position: 'absolute',
+                    top: '15%',
+                    left: '15%',
+                    width: '30%',
+                    height: '30%',
+                    background: 'rgba(255,255,255,0.4)',
+                    borderRadius: '50%',
+                    filter: 'blur(2px)'
                 }} />
             </div>
         </>
