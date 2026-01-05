@@ -1,293 +1,399 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 
-// Game Constants
-const WIDTH = 800;
-const HEIGHT = 450;
-const PLAYER_WIDTH = 25;
-const PLAYER_HEIGHT = 70;
-const BALL_SIZE = 20;
-const GRAVITY = 0.15;
-const JUMP_POWER = -6;
-const MOVE_SPEED = 7;
-const AI_SPEED = 5;
-
-// Inline SVG Icons to avoid dependency issues
-const TrophyIcon = () => (
-  <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M6 9H4.5a2.5 2.5 0 0 1 0-5H6"/><path d="M18 9h1.5a2.5 2.5 0 0 0 0-5H18"/><path d="M4 22h16"/><path d="M10 22V18"/><path d="M14 22V18"/><path d="M18 4H6v7a6 6 0 0 0 12 0V4Z"/></svg>
-);
-
-const ActivityIcon = () => (
-  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg>
-);
-
-const CpuIcon = () => (
-  <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="4" y="4" width="16" height="16" rx="2"/><rect x="9" y="9" width="6" height="6"/><path d="M15 2v2"/><path d="M15 20v2"/><path d="M2 15h2"/><path d="M2 9h2"/><path d="M20 15h2"/><path d="M20 9h2"/><path d="M9 2v2"/><path d="M9 20v2"/></svg>
-);
+// --- CONSTANTS ---
+const CANVAS_WIDTH = 900;
+const CANVAS_HEIGHT = 500;
+const PLAYER_WIDTH = 45;
+const PLAYER_HEIGHT = 80;
+const BALL_RADIUS = 15;
+const NET_WIDTH = 10;
+const NET_HEIGHT = 160;
+const GRAVITY = 0.28;
+const FRICTION = 0.99; // Air resistance
+const BOUNCE_DAMPING = 0.75;
 
 const App = () => {
-  const [gameState, setGameState] = useState('START'); // START, PLAYING, GAMEOVER
-  const [score, setScore] = useState({ player: 0, ai: 0 });
-  
-  // Player 1 State
-  const [p1, setP1] = useState({ x: 600, y: HEIGHT - PLAYER_HEIGHT, vy: 0, isJumping: false });
-  // AI State
-  const [ai, setAi] = useState({ x: 150, y: HEIGHT - PLAYER_HEIGHT, vy: 0, isJumping: false });
-  // Ball State
-  const [ball, setBall] = useState({ x: WIDTH / 2, y: 100, vx: 3, vy: 0 });
-  
-  const requestRef = useRef();
+  // Game State
+  const [gameState, setGameState] = useState('START'); // START, PLAYING, SCORING, GAMEOVER
+  const [score, setScore] = useState({ p1: 0, cpu: 0 });
+  const [screenShake, setScreenShake] = useState(0);
+  const [particles, setParticles] = useState([]);
+
+  // Refs for high-performance physics (bypass React render cycle)
+  const p1 = useRef({ 
+    x: 650, y: 0, vx: 0, vy: 0, 
+    isJumping: false, color: '#10b981', 
+    name: 'STRIKER' 
+  });
+  const cpu = useRef({ 
+    x: 200, y: 0, vx: 0, vy: 0, 
+    isJumping: false, color: '#f43f5e', 
+    name: 'GHOST-AI',
+    targetX: 200,
+    reactionTimer: 0
+  });
+  const ball = useRef({ 
+    x: 450, y: 150, vx: 0, vy: 0, 
+    stretch: 1, lastHit: null, rotation: 0 
+  });
+  const trail = useRef([]);
   const keys = useRef({});
+  const requestRef = useRef();
 
-  const update = () => {
-    if (gameState !== 'PLAYING') return;
+  // --- VISUAL EFFECTS ---
+  const triggerShake = (intensity = 10) => {
+    setScreenShake(intensity);
+    setTimeout(() => setScreenShake(0), 150);
+  };
 
-    // --- Ball Physics ---
-    setBall(prevBall => {
-      let nextBall = { ...prevBall };
-      nextBall.x += nextBall.vx;
-      nextBall.y += nextBall.vy;
-      nextBall.vy += GRAVITY;
+  const createParticles = (x, y, color) => {
+    const newParticles = Array.from({ length: 8 }).map(() => ({
+      id: Math.random(),
+      x, y,
+      vx: (Math.random() - 0.5) * 10,
+      vy: (Math.random() - 0.5) * 10,
+      life: 1.0,
+      color
+    }));
+    setParticles(prev => [...prev, ...newParticles].slice(-40));
+  };
 
-      if (nextBall.x <= 0 || nextBall.x >= WIDTH - BALL_SIZE) {
-        nextBall.vx *= -0.9;
-        nextBall.x = nextBall.x <= 0 ? 0 : WIDTH - BALL_SIZE;
+  const updateParticles = useCallback(() => {
+    setParticles(prev => prev
+      .map(p => ({ ...p, x: p.x + p.vx, y: p.y + p.vy, life: p.life - 0.05 }))
+      .filter(p => p.life > 0)
+    );
+  }, []);
+
+  // --- CORE LOGIC ---
+  const resetBall = (scorer) => {
+    ball.current = { 
+      x: scorer === 'p1' ? 250 : 650, 
+      y: 100, vx: 0, vy: 0, 
+      stretch: 1, lastHit: null, rotation: 0 
+    };
+    trail.current = [];
+  };
+
+  const gameLoop = () => {
+    if (gameState === 'PLAYING') {
+      // 1. Player 1 Movement (Arrows)
+      if (keys.current['ArrowLeft']) p1.current.vx -= 1.1;
+      if (keys.current['ArrowRight']) p1.current.vx += 1.1;
+      if (keys.current['ArrowUp'] && !p1.current.isJumping) {
+        p1.current.vy = -10.5;
+        p1.current.isJumping = true;
       }
 
-      if (nextBall.y >= HEIGHT - BALL_SIZE) {
-        const pointForAi = nextBall.x > WIDTH / 2;
-        handleScore(pointForAi);
-        return { x: WIDTH / 2, y: 100, vx: pointForAi ? 4 : -4, vy: 0 };
-      }
-
-      const netX = WIDTH / 2 - 5;
-      const netHeight = 150;
-      if (
-        nextBall.y > HEIGHT - netHeight &&
-        nextBall.x + BALL_SIZE > netX &&
-        nextBall.x < netX + 10
-      ) {
-        nextBall.vx *= -0.8;
-      }
-
-      return nextBall;
-    });
-
-    // --- Player Movement & Input ---
-    setP1(prevP1 => {
-      let nextP1 = { ...prevP1 };
-      if (keys.current['ArrowLeft']) nextP1.x -= MOVE_SPEED;
-      if (keys.current['ArrowRight']) nextP1.x += MOVE_SPEED;
-      if (keys.current['ArrowUp'] && !nextP1.isJumping) {
-        nextP1.vy = JUMP_POWER;
-        nextP1.isJumping = true;
-      }
-
-      nextP1.y += nextP1.vy;
-      nextP1.vy += GRAVITY;
-
-      if (nextP1.y >= HEIGHT - PLAYER_HEIGHT) {
-        nextP1.y = HEIGHT - PLAYER_HEIGHT;
-        nextP1.vy = 0;
-        nextP1.isJumping = false;
-      }
-
-      nextP1.x = Math.max(WIDTH / 2 + 10, Math.min(WIDTH - PLAYER_WIDTH, nextP1.x));
-      return nextP1;
-    });
-
-    // --- AI Logic ---
-    setAi(prevAi => {
-      let nextAi = { ...prevAi };
-      const ballPos = ball.x + BALL_SIZE / 2;
-      const aiCenter = nextAi.x + PLAYER_WIDTH / 2;
-
-      if (ball.x < WIDTH / 2 + 50) {
-        if (aiCenter < ballPos - 10) nextAi.x += AI_SPEED;
-        else if (aiCenter > ballPos + 10) nextAi.x -= AI_SPEED;
-        
-        if (ball.y < HEIGHT - 150 && ball.x < WIDTH / 4 && !nextAi.isJumping) {
-          nextAi.vy = JUMP_POWER;
-          nextAi.isJumping = true;
+      // 2. CPU AI Logic (Predictive)
+      cpu.current.reactionTimer++;
+      if (cpu.current.reactionTimer > 5) {
+        // Only react to ball if it's on CPU's side or coming fast
+        if (ball.current.x < CANVAS_WIDTH / 2 + 100) {
+          cpu.current.targetX = ball.current.x - PLAYER_WIDTH / 2;
+        } else {
+          cpu.current.targetX = 150; // Return to base
         }
-      } else {
-        if (aiCenter < 150) nextAi.x += AI_SPEED / 2;
-        else if (aiCenter > 170) nextAi.x -= AI_SPEED / 2;
+        cpu.current.reactionTimer = 0;
       }
 
-      nextAi.y += nextAi.vy;
-      nextAi.vy += GRAVITY;
+      const cpuSpeed = 0.85;
+      if (cpu.current.x < cpu.current.targetX) cpu.current.vx += cpuSpeed;
+      else if (cpu.current.x > cpu.current.targetX) cpu.current.vx -= cpuSpeed;
 
-      if (nextAi.y >= HEIGHT - PLAYER_HEIGHT) {
-        nextAi.y = HEIGHT - PLAYER_HEIGHT;
-        nextAi.vy = 0;
-        nextAi.isJumping = false;
+      // CPU Jump Logic
+      if (!cpu.current.isJumping && ball.current.x < 300 && ball.current.y < 250 && ball.current.vy > 0) {
+        cpu.current.vy = -10;
+        cpu.current.isJumping = true;
       }
 
-      nextAi.x = Math.max(0, Math.min(WIDTH / 2 - PLAYER_WIDTH - 10, nextAi.x));
-      return nextAi;
-    });
+      // 3. Physics Processing
+      [p1.current, cpu.current].forEach((p, idx) => {
+        p.vx *= 0.85; // Friction
+        p.x += p.vx;
+        p.y += p.vy;
+        p.vy += GRAVITY;
 
-    checkCollision(p1, true);
-    checkCollision(ai, false);
+        // Ground Floor
+        if (p.y > CANVAS_HEIGHT - PLAYER_HEIGHT - 30) {
+          p.y = CANVAS_HEIGHT - PLAYER_HEIGHT - 30;
+          p.vy = 0;
+          p.isJumping = false;
+        }
 
-    requestRef.current = requestAnimationFrame(update);
-  };
+        // Net & Wall Constraints
+        const isP1 = idx === 0;
+        const minX = isP1 ? CANVAS_WIDTH / 2 + NET_WIDTH : 30;
+        const maxX = isP1 ? CANVAS_WIDTH - PLAYER_WIDTH - 30 : CANVAS_WIDTH / 2 - NET_WIDTH - PLAYER_WIDTH;
+        p.x = Math.max(minX, Math.min(maxX, p.x));
+      });
 
-  const checkCollision = (character, isPlayer) => {
-    if (
-      ball.x < character.x + PLAYER_WIDTH &&
-      ball.x + BALL_SIZE > character.x &&
-      ball.y < character.y + PLAYER_HEIGHT &&
-      ball.y + BALL_SIZE > character.y
-    ) {
-      const hitDiff = (ball.x + BALL_SIZE/2) - (character.x + PLAYER_WIDTH/2);
-      setBall(b => ({
-        ...b,
-        vy: -7,
-        vx: hitDiff * 0.4 + (isPlayer ? -2 : 2)
-      }));
-    }
-  };
-
-  const handleScore = (isAiPoint) => {
-    setScore(prev => {
-      const newScore = isAiPoint 
-        ? { ...prev, ai: prev.ai + 1 } 
-        : { ...prev, player: prev.player + 1 };
+      // 4. Ball Physics
+      ball.current.vx *= FRICTION;
+      ball.current.x += ball.current.vx;
+      ball.current.y += ball.current.vy;
+      ball.current.vy += GRAVITY;
+      ball.current.rotation += ball.current.vx * 2;
       
-      if (newScore.ai >= 11 || newScore.player >= 11) {
-        setGameState('GAMEOVER');
+      // Squash and Stretch calculation
+      const speed = Math.sqrt(ball.current.vx**2 + ball.current.vy**2);
+      ball.current.stretch = 1 + (speed / 35);
+
+      // 5. Trail Update
+      trail.current.push({ x: ball.current.x, y: ball.current.y });
+      if (trail.current.length > 10) trail.current.shift();
+
+      // 6. Wall/Net Collisions
+      if (ball.current.x < BALL_RADIUS + 20 || ball.current.x > CANVAS_WIDTH - BALL_RADIUS - 20) {
+        ball.current.vx *= -0.7;
+        ball.current.x = ball.current.x < BALL_RADIUS + 20 ? BALL_RADIUS + 20 : CANVAS_WIDTH - BALL_RADIUS - 20;
+        triggerShake(5);
       }
-      return newScore;
-    });
+
+      // Net Collision
+      if (ball.current.y > CANVAS_HEIGHT - NET_HEIGHT - 30) {
+        if (Math.abs(ball.current.x - CANVAS_WIDTH / 2) < BALL_RADIUS + NET_WIDTH / 2) {
+          ball.current.vx *= -0.5;
+          ball.current.x = ball.current.x < CANVAS_WIDTH / 2 ? CANVAS_WIDTH/2 - 20 : CANVAS_WIDTH/2 + 20;
+          triggerShake(8);
+        }
+      }
+
+      // 7. Player-Ball Collisions
+      [p1.current, cpu.current].forEach(p => {
+        const dx = ball.current.x - (p.x + PLAYER_WIDTH / 2);
+        const dy = ball.current.y - (p.y + PLAYER_HEIGHT / 2);
+        const dist = Math.sqrt(dx*dx + dy*dy);
+
+        // AABB check for simplicity but with added "kick" based on offset
+        if (ball.current.x + BALL_RADIUS > p.x && 
+            ball.current.x - BALL_RADIUS < p.x + PLAYER_WIDTH &&
+            ball.current.y + BALL_RADIUS > p.y && 
+            ball.current.y - BALL_RADIUS < p.y + PLAYER_HEIGHT) {
+          
+          const hitPower = 11;
+          const hitDir = (ball.current.x - (p.x + PLAYER_WIDTH / 2)) / (PLAYER_WIDTH / 2);
+          
+          ball.current.vx = hitDir * 8 + p.vx * 0.6;
+          ball.current.vy = -hitPower - Math.abs(p.vx * 0.2);
+          ball.current.y = p.y - BALL_RADIUS - 5;
+          
+          triggerShake(12);
+          createParticles(ball.current.x, ball.current.y, p.color);
+        }
+      });
+
+      // 8. Scoring Logic
+      if (ball.current.y > CANVAS_HEIGHT - BALL_RADIUS - 30) {
+        const scorer = ball.current.x > CANVAS_WIDTH / 2 ? 'cpu' : 'p1';
+        setScore(prev => {
+          const next = { ...prev, [scorer]: prev[scorer] + 1 };
+          if (next.p1 >= 11 || next.cpu >= 11) {
+            setGameState('GAMEOVER');
+          } else {
+            setGameState('SCORING');
+            setTimeout(() => {
+              resetBall(scorer);
+              setGameState('PLAYING');
+            }, 1200);
+          }
+          return next;
+        });
+        triggerShake(20);
+        createParticles(ball.current.x, ball.current.y, '#fff');
+      }
+
+      updateParticles();
+    }
+    requestRef.current = requestAnimationFrame(gameLoop);
   };
 
   useEffect(() => {
-    const handleKeyDown = (e) => (keys.current[e.key] = true);
-    const handleKeyUp = (e) => (keys.current[e.key] = false);
+    const handleKeyDown = (e) => keys.current[e.key] = true;
+    const handleKeyUp = (e) => keys.current[e.key] = false;
     window.addEventListener('keydown', handleKeyDown);
     window.addEventListener('keyup', handleKeyUp);
-    
-    requestRef.current = requestAnimationFrame(update);
+    requestRef.current = requestAnimationFrame(gameLoop);
     return () => {
       window.removeEventListener('keydown', handleKeyDown);
       window.removeEventListener('keyup', handleKeyUp);
       cancelAnimationFrame(requestRef.current);
     };
-  }, [gameState, ball, p1, ai]);
-
-  const startGame = () => {
-    setScore({ player: 0, ai: 0 });
-    setGameState('PLAYING');
-  };
+  }, [gameState, updateParticles]);
 
   return (
-    <div className="flex flex-col items-center justify-center min-h-screen bg-slate-950 font-sans text-slate-100 p-4">
-      <div className="w-full max-w-3xl flex items-center justify-between mb-6 bg-slate-900/50 p-4 rounded-2xl border border-slate-800 backdrop-blur-sm shadow-xl">
-        <div className="flex items-center gap-3">
-          <div className="bg-red-500/20 p-2 rounded-lg border border-red-500/30">
-            <CpuIcon />
-          </div>
-          <div>
-            <p className="text-xs text-slate-400 uppercase font-bold tracking-wider">CPU Enemy</p>
-            <p className="text-2xl font-black text-white leading-none">{score.ai}</p>
+    <div className="flex flex-col items-center justify-center min-h-screen bg-[#020617] text-slate-100 p-4 font-sans selection:bg-rose-500 overflow-hidden">
+      
+      {/* HUD - Scoreboard */}
+      <div className="flex items-center gap-16 mb-10 z-10">
+        <div className="text-right">
+          <div className="text-[10px] tracking-[0.5em] text-rose-500 font-black mb-2 opacity-50">GUEST AI</div>
+          <div className="text-8xl font-black italic tabular-nums leading-none drop-shadow-[0_0_20px_rgba(244,63,94,0.4)]">
+            {score.cpu.toString().padStart(2, '0')}
           </div>
         </div>
-
-        <div className="text-center px-6">
-          <div className="text-sky-500 flex justify-center mb-1 animate-pulse">
-            <ActivityIcon />
-          </div>
-          <p className="text-[10px] text-slate-500 uppercase font-black tracking-widest">First to 11</p>
+        
+        <div className="flex flex-col items-center gap-2">
+          <div className="h-16 w-[1px] bg-gradient-to-b from-transparent via-slate-700 to-transparent" />
+          <div className="px-3 py-1 bg-slate-800 rounded text-[9px] font-bold tracking-widest text-slate-500 border border-slate-700">SET 1</div>
         </div>
 
-        <div className="flex items-center gap-3 text-right">
-          <div>
-            <p className="text-xs text-slate-400 uppercase font-bold tracking-wider">Pro Player</p>
-            <p className="text-2xl font-black text-white leading-none">{score.player}</p>
-          </div>
-          <div className="bg-emerald-500/20 p-2 rounded-lg border border-emerald-500/30">
-            <TrophyIcon />
+        <div className="text-left">
+          <div className="text-[10px] tracking-[0.5em] text-emerald-400 font-black mb-2 opacity-50">STRIKER-01</div>
+          <div className="text-8xl font-black italic tabular-nums leading-none drop-shadow-[0_0_20px_rgba(16,185,129,0.4)]">
+            {score.p1.toString().padStart(2, '0')}
           </div>
         </div>
       </div>
 
-      <div className="relative">
+      {/* Main Stadium Container */}
+      <div 
+        className="relative p-3 bg-slate-900/50 rounded-[48px] border border-slate-800 shadow-[0_40px_100px_-20px_rgba(0,0,0,0.7)] transition-transform duration-75"
+        style={{ transform: `translate(${Math.random() * screenShake}px, ${Math.random() * screenShake}px)` }}
+      >
         <div 
-          className="relative bg-gradient-to-b from-sky-400 to-sky-600 rounded-xl overflow-hidden border-4 border-white/20 shadow-2xl"
-          style={{ width: WIDTH, height: HEIGHT }}
+          className="relative bg-slate-950 rounded-[40px] overflow-hidden shadow-inner"
+          style={{ width: CANVAS_WIDTH, height: CANVAS_HEIGHT }}
         >
-          {/* Decorative Background Elements */}
-          <div className="absolute top-10 left-10 w-20 h-8 bg-white/20 rounded-full blur-xl" />
-          <div className="absolute top-20 right-20 w-32 h-10 bg-white/20 rounded-full blur-xl" />
-          <div className="absolute bottom-0 w-full h-12 bg-emerald-700/30" />
+          {/* Ambient Lighting */}
+          <div className="absolute inset-0 bg-gradient-to-b from-slate-900/20 to-slate-950" />
+          <div className="absolute top-0 left-1/4 w-1/2 h-full bg-blue-500/5 blur-[120px] rounded-full pointer-events-none" />
 
-          {/* Net */}
-          <div className="absolute left-1/2 bottom-0 w-[10px] h-[150px] bg-slate-100/40 border-x border-white/50 -translate-x-1/2 backdrop-blur-sm z-10" />
+          {/* Court Markings */}
+          <div className="absolute inset-x-12 bottom-8 top-1/2 border-2 border-white/5 rounded-3xl bg-gradient-to-t from-white/5 to-transparent" />
+          <div className="absolute left-1/2 bottom-8 h-[70%] w-[1px] bg-white/10 -translate-x-1/2" />
+          
+          {/* Particle Layer */}
+          {particles.map(p => (
+            <div 
+              key={p.id}
+              className="absolute rounded-full pointer-events-none"
+              style={{ left: p.x, top: p.y, width: 4, height: 4, backgroundColor: p.color, opacity: p.life }}
+            />
+          ))}
 
-          {/* Characters and Ball */}
+          {/* Ball Shadow */}
           <div 
-            className="absolute bg-red-500 rounded-t-2xl shadow-lg border-b-4 border-red-700 z-20"
-            style={{ width: PLAYER_WIDTH, height: PLAYER_HEIGHT, left: ai.x, top: ai.y }}
-          >
-            <div className="w-full h-1/3 bg-white/20 flex items-center justify-center">
-              <div className="w-1.5 h-1.5 bg-black rounded-full mx-0.5" />
-              <div className="w-1.5 h-1.5 bg-black rounded-full mx-0.5" />
-            </div>
-          </div>
-
-          <div 
-            className="absolute bg-emerald-500 rounded-t-2xl shadow-lg border-b-4 border-emerald-700 z-20"
-            style={{ width: PLAYER_WIDTH, height: PLAYER_HEIGHT, left: p1.x, top: p1.y }}
-          >
-            <div className="w-full h-1/3 bg-white/20 flex items-center justify-center">
-              <div className="w-1.5 h-1.5 bg-black rounded-full mx-0.5" />
-              <div className="w-1.5 h-1.5 bg-black rounded-full mx-0.5" />
-            </div>
-          </div>
-
-          <div 
-            className="absolute bg-yellow-400 rounded-full shadow-md z-30 transition-transform"
+            className="absolute bottom-[35px] bg-black/50 blur-xl rounded-full transition-transform"
             style={{ 
-              width: BALL_SIZE, height: BALL_SIZE, left: ball.x, top: ball.y,
-              boxShadow: 'inset -4px -4px 0 rgba(0,0,0,0.1)'
-            }}
+              left: ball.current.x - 20, 
+              width: 40, 
+              height: 10, 
+              transform: `scale(${Math.max(0.2, 1 - ball.current.y/CANVAS_HEIGHT)})` 
+            }} 
           />
 
-          {/* Menu Overlay */}
+          {/* Ball Trail */}
+          {trail.current.map((t, i) => (
+            <div 
+              key={i} 
+              className="absolute bg-white/10 rounded-full pointer-events-none"
+              style={{ 
+                left: t.x - 8, top: t.y - 8, 
+                width: 16, height: 16, 
+                opacity: i / 15,
+                transform: `scale(${i / 10})` 
+              }} 
+            />
+          ))}
+
+          {/* The Net */}
+          <div className="absolute left-1/2 bottom-8 w-[10px] h-[160px] -translate-x-1/2 z-20">
+            <div className="w-full h-full bg-slate-200 rounded-full shadow-[0_0_15px_rgba(255,255,255,0.2)] border-x border-slate-400" />
+            <div className="absolute -top-2 left-1/2 -translate-x-1/2 w-4 h-4 bg-rose-500 rounded-full blur-sm animate-pulse" />
+          </div>
+
+          {/* CPU Player */}
+          <div 
+            className="absolute rounded-2xl flex flex-col items-center border-t-4 border-white/20 shadow-2xl transition-all"
+            style={{ 
+              width: PLAYER_WIDTH, height: PLAYER_HEIGHT, 
+              left: cpu.current.x, top: cpu.current.y, 
+              backgroundColor: cpu.current.color,
+              transform: `skewX(${cpu.current.vx * 0.5}deg)`
+            }}
+          >
+            <div className="mt-2 w-7 h-7 bg-slate-900 rounded-full border-2 border-white/10 flex items-center justify-center">
+              <div className="w-1.5 h-1.5 bg-rose-500 rounded-full animate-ping" />
+            </div>
+            <div className="mt-1 w-1/2 h-1 bg-black/20 rounded-full" />
+          </div>
+
+          {/* Player 1 */}
+          <div 
+            className="absolute rounded-2xl flex flex-col items-center border-t-4 border-white/20 shadow-2xl transition-all"
+            style={{ 
+              width: PLAYER_WIDTH, height: PLAYER_HEIGHT, 
+              left: p1.current.x, top: p1.current.y, 
+              backgroundColor: p1.current.color,
+              transform: `skewX(${p1.current.vx * 0.5}deg)`
+            }}
+          >
+            <div className="mt-2 w-7 h-7 bg-slate-900 rounded-full border-2 border-white/10 flex items-center justify-center">
+              <div className="w-1.5 h-1.5 bg-emerald-400 rounded-full" />
+            </div>
+            <div className="mt-1 w-1/2 h-1 bg-black/20 rounded-full" />
+          </div>
+
+          {/* The Ball */}
+          <div 
+            className="absolute rounded-full z-30 shadow-[0_10px_20px_rgba(0,0,0,0.5)] border-2 border-white/20"
+            style={{ 
+              width: BALL_RADIUS * 2, height: BALL_RADIUS * 2, 
+              left: ball.current.x - BALL_RADIUS, top: ball.current.y - BALL_RADIUS,
+              background: 'radial-gradient(circle at 30% 30%, #fff 0%, #fbbf24 60%, #b45309 100%)',
+              transform: `scaleX(${2 - ball.current.stretch}) scaleY(${ball.current.stretch}) rotate(${ball.current.rotation}deg)`
+            }} 
+          />
+
+          {/* OVERLAYS */}
           {gameState !== 'PLAYING' && (
-            <div className="absolute inset-0 bg-slate-950/80 backdrop-blur-md z-40 flex flex-col items-center justify-center p-8 text-center">
-              {gameState === 'GAMEOVER' && (
-                <div className="mb-6">
-                  <h2 className="text-4xl font-black mb-2 text-white italic">
-                    {score.player > score.ai ? 'YOU WIN!' : 'CPU WINS!'}
-                  </h2>
-                  <p className="text-slate-400">Final Score: {score.ai} - {score.player}</p>
+            <div className="absolute inset-0 bg-slate-950/80 backdrop-blur-md z-50 flex flex-col items-center justify-center p-12 text-center">
+              {gameState === 'START' && (
+                <div className="animate-in fade-in zoom-in duration-500">
+                  <h1 className="text-8xl font-black italic tracking-tighter mb-2 bg-gradient-to-r from-white via-white to-slate-500 bg-clip-text text-transparent">
+                    VOLLEY<span className="text-emerald-500">PRO</span>
+                  </h1>
+                  <p className="text-slate-500 uppercase tracking-[0.6em] text-[10px] font-bold mb-12">Universal Simulator v2.5</p>
+                  <button 
+                    onClick={() => setGameState('PLAYING')}
+                    className="group relative px-20 py-5 bg-white text-slate-950 font-black uppercase rounded-full overflow-hidden transition-all hover:scale-110 active:scale-95 shadow-[0_20px_50px_rgba(255,255,255,0.15)]"
+                  >
+                    <span className="relative z-10">Start Simulation</span>
+                    <div className="absolute inset-0 bg-emerald-500 translate-y-full group-hover:translate-y-0 transition-transform duration-300" />
+                  </button>
                 </div>
               )}
-              <h1 className="text-6xl font-black text-transparent bg-clip-text bg-gradient-to-r from-yellow-400 via-orange-500 to-red-500 mb-8 italic tracking-tighter">
-                VOLLEY PRO
-              </h1>
-              <button 
-                onClick={startGame}
-                className="px-12 py-4 bg-white text-slate-950 font-black rounded-full hover:scale-110 active:scale-95 transition-all shadow-2xl uppercase tracking-widest"
-              >
-                {gameState === 'START' ? 'Start Match' : 'Play Again'}
-              </button>
+
+              {gameState === 'SCORING' && (
+                <div className="animate-bounce">
+                  <h2 className="text-9xl font-black italic text-white/5 tracking-widest">POINT</h2>
+                  <div className="h-2 w-48 bg-emerald-500 mx-auto rounded-full mt-4" />
+                </div>
+              )}
+
+              {gameState === 'GAMEOVER' && (
+                <div className="animate-in slide-in-from-bottom duration-500">
+                  <h2 className="text-6xl font-black italic mb-2">SEQUENCE COMPLETE</h2>
+                  <p className="text-slate-500 mb-10 tracking-widest uppercase text-xs">Winner: {score.p1 >= 11 ? 'Striker-01' : 'Ghost-AI'}</p>
+                  <button 
+                    onClick={() => { setScore({p1: 0, cpu: 0}); setGameState('PLAYING'); }}
+                    className="px-12 py-4 bg-emerald-500 text-slate-950 rounded-full font-black uppercase hover:bg-white transition-colors"
+                  >
+                    Reboot Match
+                  </button>
+                </div>
+              )}
             </div>
           )}
         </div>
       </div>
 
-      <div className="mt-8 flex gap-12 text-slate-500 font-bold uppercase tracking-wider text-xs">
-        <div className="flex items-center gap-2">
-          <span className="bg-slate-800 px-2 py-1 rounded text-white">← →</span>
-          <span>Move</span>
-        </div>
-        <div className="flex items-center gap-2">
-          <span className="bg-slate-800 px-2 py-1 rounded text-white">↑</span>
-          <span>Jump</span>
-        </div>
+      {/* Footer / Controls Info */}
+      <div className="mt-12 flex gap-12 text-[9px] font-black text-slate-600 uppercase tracking-[0.4em]">
+        <div className="flex items-center gap-3"><div className="w-1.5 h-1.5 rounded-full bg-emerald-400" /> Move with Arrows</div>
+        <div className="flex items-center gap-3"><div className="w-1.5 h-1.5 rounded-full bg-rose-500" /> 11 Points to Win</div>
+        <div className="flex items-center gap-3"><div className="w-1.5 h-1.5 rounded-full bg-white animate-pulse" /> AI: Active</div>
       </div>
     </div>
   );

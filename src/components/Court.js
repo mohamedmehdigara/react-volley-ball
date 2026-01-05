@@ -1,93 +1,63 @@
 import React, { useMemo, useState, useEffect, useCallback } from 'react';
 import PropTypes from 'prop-types';
 
-/** * --- ADVANCED CONFIGURATION ---
- * Extended styles including ambient effects and physics constants
+/** * --- EXTENDED STYLES & THEMES ---
+ * Added depth, scuff marks, and subsurface scattering properties
  */
 const COURT_STYLES = {
   indoor: {
-    background: 'linear-gradient(to bottom, #d2b48c, #8b5a2b)',
-    texture: 'repeating-linear-gradient(90deg, rgba(0,0,0,0.03) 0px, rgba(0,0,0,0.03) 40px, rgba(255,255,255,0.02) 41px)',
+    background: 'linear-gradient(to bottom, #e5c08a, #bc8f4f)',
+    texture: 'repeating-linear-gradient(90deg, rgba(0,0,0,0.02) 0px, rgba(0,0,0,0.02) 60px, rgba(255,255,255,0.01) 61px)',
     lineColor: '#ffffff',
-    shadowColor: 'rgba(0, 0, 0, 0.4)',
+    shadowColor: 'rgba(40, 20, 0, 0.5)',
     accentColor: '#3b82f6',
     reflection: true,
-    ambient: 'none'
+    ambient: 'none',
+    scuffs: true
   },
   gym: {
-    background: 'linear-gradient(to bottom, #1e40af, #1e3a8a)',
+    background: 'linear-gradient(to bottom, #1e3a8a, #172554)',
     texture: 'none',
-    lineColor: '#fde047',
-    shadowColor: 'rgba(0, 0, 0, 0.6)',
-    accentColor: '#ef4444',
+    lineColor: '#fbbf24',
+    shadowColor: 'rgba(0, 0, 0, 0.7)',
+    accentColor: '#f87171',
     reflection: true,
-    ambient: 'none'
+    ambient: 'none',
+    scuffs: false
   },
   beach: {
-    background: 'linear-gradient(to bottom, #fde68a, #f59e0b)',
-    texture: 'radial-gradient(#d97706 0.5px, transparent 0)',
-    lineColor: '#ffffff',
-    shadowColor: 'rgba(120, 53, 15, 0.3)',
+    background: 'linear-gradient(to bottom, #fef3c7, #f59e0b)',
+    texture: 'radial-gradient(circle, #d97706 0.2px, transparent 0)',
+    lineColor: '#f8fafc',
+    shadowColor: 'rgba(120, 53, 15, 0.2)',
     accentColor: '#10b981',
     reflection: false,
-    ambient: 'wind'
+    ambient: 'wind',
+    scuffs: false
   }
 };
 
-/** --- HELPER: Rain/Dust Particles --- */
-const AmbientEffect = ({ type }) => {
-  if (type === 'none') return null;
-  return (
-    <div className="absolute inset-0 pointer-events-none overflow-hidden opacity-30">
-      {[...Array(20)].map((_, i) => (
-        <div key={i} className="absolute bg-white/20 animate-pulse" style={{
-          left: `${Math.random() * 100}%`,
-          top: `${Math.random() * 100}%`,
-          width: '2px',
-          height: '10px',
-          transform: 'rotate(15deg)',
-          animationDuration: `${Math.random() * 2 + 1}s`
-        }} />
-      ))}
-    </div>
-  );
-};
+/** --- COMPONENT: Stadium Lighting Rig --- */
+const StadiumLights = () => (
+  <div className="absolute -top-24 inset-x-0 flex justify-between px-20 pointer-events-none z-[60]">
+    {[1, 2, 3, 4].map((i) => (
+      <div key={i} className="relative">
+        <div className="w-16 h-8 bg-slate-800 rounded-t-lg border-b-4 border-blue-400" />
+        <div className="absolute top-8 left-1/2 -translate-x-1/2 w-40 h-[600px] bg-gradient-to-b from-blue-400/20 to-transparent blur-3xl opacity-40 origin-top rotate-[5deg]" />
+        <div className="absolute top-8 left-1/2 -translate-x-1/2 w-40 h-[600px] bg-gradient-to-b from-blue-400/20 to-transparent blur-3xl opacity-40 origin-top -rotate-[5deg]" />
+      </div>
+    ))}
+  </div>
+);
 
-/** --- HELPER: Camera Flashes --- */
-const CameraFlash = () => {
-  const [visible, setVisible] = useState(false);
-  const [pos, setPos] = useState({ top: '0%', left: '0%' });
-
-  useEffect(() => {
-    const trigger = () => {
-      if (Math.random() > 0.85) {
-        setPos({ 
-          top: `${Math.random() * 90}%`, 
-          left: Math.random() > 0.5 ? '-80px' : 'calc(100% + 40px)' 
-        });
-        setVisible(true);
-        setTimeout(() => setVisible(false), 50);
-      }
-    };
-    const interval = setInterval(trigger, 400);
-    return () => clearInterval(interval);
-  }, []);
-
-  if (!visible) return null;
-  return (
-    <div className="absolute rounded-full bg-white blur-md z-[100] opacity-90 shadow-[0_0_30px_15px_white]"
-         style={{ ...pos, width: '20px', height: '20px' }} />
-  );
-};
-
-/** --- HELPER: Crowd with Reaction Logic --- */
-const CrowdArea = React.memo(({ side, lastHitTime }) => {
-  const [isCheering, setIsCheering] = useState(false);
+/** --- COMPONENT: Crowd with Advanced AI States --- */
+const CrowdArea = React.memo(({ side, lastHitTime, excitementLevel }) => {
+  const [mood, setMood] = useState('idle');
 
   useEffect(() => {
     if (lastHitTime) {
-      setIsCheering(true);
-      const timer = setTimeout(() => setIsCheering(false), 600);
+      setMood('cheering');
+      const timer = setTimeout(() => setMood('idle'), 800);
       return () => clearTimeout(timer);
     }
   }, [lastHitTime]);
@@ -95,230 +65,226 @@ const CrowdArea = React.memo(({ side, lastHitTime }) => {
   return (
     <div style={{
       position: 'absolute',
-      [side]: '-90px',
-      top: '2%',
-      height: '96%',
-      width: '70px',
+      [side]: '-110px',
+      top: '5%',
+      height: '90%',
+      width: '80px',
       display: 'grid',
-      gridTemplateColumns: 'repeat(2, 1fr)',
-      gap: '4px',
-      opacity: 0.6,
-      perspective: '500px'
+      gridTemplateColumns: 'repeat(3, 1fr)',
+      gap: '6px',
+      perspective: '1000px'
     }}>
-      {[...Array(16)].map((_, i) => (
-        <div key={i} style={{
-          width: '18px',
-          height: '18px',
-          borderRadius: '50% 50% 4px 4px',
-          backgroundColor: i % 2 === 0 ? '#1e293b' : '#334155',
-          transform: isCheering ? `translateZ(${Math.random() * 40}px) translateY(-10px)` : 'none',
-          transition: 'transform 0.2s cubic-bezier(0.175, 0.885, 0.32, 1.275)',
-          borderBottom: '2px solid rgba(0,0,0,0.3)'
-        }} />
+      {[...Array(24)].map((_, i) => (
+        <div key={i} 
+          className={`transition-all duration-300 ${mood === 'cheering' ? 'translate-y-[-12px] scale-110' : 'translate-y-0'}`}
+          style={{
+            width: '16px',
+            height: '22px',
+            borderRadius: '40% 40% 4px 4px',
+            backgroundColor: i % 3 === 0 ? '#0f172a' : (i % 3 === 1 ? '#1e293b' : '#334155'),
+            boxShadow: 'inset 0 4px 6px rgba(255,255,255,0.1)',
+            transform: `translateZ(${Math.random() * 20}px)`,
+            transitionDelay: `${Math.random() * 200}ms`
+          }} 
+        />
       ))}
     </div>
   );
 });
 
-/** --- HELPER: Pro Scoreboard --- */
+/** --- COMPONENT: Holographic Jumbotron --- */
 const Jumbotron = ({ score, gameStatus }) => (
-  <div className="flex flex-col items-center mb-8">
-    <div className="bg-slate-900 border-4 border-slate-800 p-1 rounded-xl shadow-2xl flex items-center gap-4">
-      <div className="bg-black px-6 py-2 rounded-lg border border-slate-700">
-        <div className="text-[10px] text-blue-500 font-bold uppercase tracking-tighter">Home</div>
-        <div className="text-4xl font-black text-white font-mono">{score.p1.toString().padStart(2, '0')}</div>
+  <div className="relative group mb-12">
+    {/* Glitch Effect Background */}
+    <div className="absolute -inset-1 bg-gradient-to-r from-blue-600 to-rose-600 rounded-2xl blur opacity-25 group-hover:opacity-50 transition duration-1000 group-hover:duration-200"></div>
+    
+    <div className="relative flex flex-col items-center bg-slate-950 px-10 py-4 rounded-xl border border-white/10 shadow-2xl">
+      <div className="flex items-center gap-12">
+        <div className="text-center">
+          <div className="text-[10px] text-blue-400 font-black uppercase tracking-[0.3em] mb-1">Home Team</div>
+          <div className="text-6xl font-black text-white tabular-nums drop-shadow-[0_0_10px_rgba(59,130,246,0.5)]">
+            {score.p1.toString().padStart(2, '0')}
+          </div>
+        </div>
+
+        <div className="flex flex-col items-center justify-center">
+          <div className="w-12 h-12 rounded-full border-2 border-slate-800 flex items-center justify-center bg-slate-900 overflow-hidden">
+             <div className="text-rose-500 font-black italic text-sm animate-pulse">LIVE</div>
+          </div>
+          <div className="text-[10px] text-slate-500 font-bold mt-2">SET 01</div>
+        </div>
+
+        <div className="text-center">
+          <div className="text-[10px] text-rose-400 font-black uppercase tracking-[0.3em] mb-1">Visitor</div>
+          <div className="text-6xl font-black text-white tabular-nums drop-shadow-[0_0_10px_rgba(244,63,94,0.5)]">
+            {score.ai.toString().padStart(2, '0')}
+          </div>
+        </div>
       </div>
-      <div className="flex flex-col items-center">
-        <div className="text-rose-500 font-black text-xl italic leading-none">VS</div>
-        <div className="text-[10px] text-slate-500 font-bold mt-1 uppercase tracking-widest">Set 1</div>
+      
+      {/* Ticker Tape */}
+      <div className="w-full mt-4 pt-2 border-t border-white/5 overflow-hidden whitespace-nowrap">
+        <div className="text-[9px] text-slate-400 uppercase font-bold tracking-widest animate-marquee inline-block">
+          MATCH POINT NEAR • WORLD VOLLEYBALL SERIES • {gameStatus === 'playing' ? 'ACTION REPLAY ENABLED' : 'WAITING FOR SERVE'} •&nbsp;
+        </div>
       </div>
-      <div className="bg-black px-6 py-2 rounded-lg border border-slate-700">
-        <div className="text-[10px] text-rose-500 font-bold uppercase tracking-tighter">Away</div>
-        <div className="text-4xl font-black text-white font-mono">{score.ai.toString().padStart(2, '0')}</div>
-      </div>
-    </div>
-    <div className="mt-2 text-blue-400 font-bold text-[10px] uppercase tracking-[0.4em] animate-pulse">
-      {gameStatus === 'playing' ? 'Live Match' : 'Intermission'}
     </div>
   </div>
 );
 
-/** --- HELPER: Net & Posts --- */
-const NetComponent = React.memo(({ netTop, accentColor }) => {
-  const postHeight = 120;
-  const netLineHeight = 30;
-  
+/** --- COMPONENT: Interactive Net --- */
+const NetSystem = React.memo(({ netTop, accentColor, isShaking }) => {
   return (
-    <div style={{
-      position: 'absolute',
-      left: 0,
-      top: netTop - netLineHeight / 2,
-      width: '100%',
-      height: netLineHeight, 
-      backgroundColor: 'rgba(255, 255, 255, 0.05)',
-      backgroundImage: `
-        repeating-linear-gradient(90deg, transparent, transparent 8px, rgba(255,255,255,0.2) 8px, rgba(255,255,255,0.2) 9px),
-        repeating-linear-gradient(0deg, transparent, transparent 8px, rgba(255,255,255,0.2) 8px, rgba(255,255,255,0.2) 9px)
-      `,
-      borderTop: '6px solid #fff',
-      borderBottom: '2px solid rgba(255,255,255,0.3)',
-      zIndex: 40,
-      boxShadow: '0 10px 20px rgba(0,0,0,0.2)'
-    }}>
-      {/* Posts */}
-      {[-18, 'calc(100% + 4px)'].map((pos, idx) => (
-        <div key={idx} style={{
-          position: 'absolute',
-          left: pos,
-          bottom: -40,
-          width: '14px',
-          height: postHeight,
-          background: 'linear-gradient(to right, #334, #112, #334)',
-          borderRadius: '4px',
-          borderTop: `8px solid ${accentColor}`,
-          zIndex: 41
-        }} />
-      ))}
+    <div className={`absolute left-0 w-full transition-transform duration-100 ${isShaking ? 'animate-wiggle' : ''}`}
+      style={{
+        top: netTop - 15,
+        height: '35px',
+        backgroundColor: 'rgba(255, 255, 255, 0.03)',
+        backgroundImage: `
+          repeating-linear-gradient(90deg, transparent, transparent 10px, rgba(255,255,255,0.1) 10px, rgba(255,255,255,0.1) 11px),
+          repeating-linear-gradient(0deg, transparent, transparent 10px, rgba(255,255,255,0.1) 10px, rgba(255,255,255,0.1) 11px)
+        `,
+        borderTop: '5px solid #fff',
+        borderBottom: '2px solid rgba(255,255,255,0.2)',
+        zIndex: 40,
+        boxShadow: '0 15px 30px rgba(0,0,0,0.3)'
+      }}>
       
-      {/* Antennas */}
-      {[0, 'calc(100% - 4px)'].map((pos, idx) => (
-        <div key={idx} style={{
-          position: 'absolute',
-          left: pos,
-          top: -60,
-          width: '4px',
-          height: '80px',
-          background: 'repeating-linear-gradient(#ef4444, #ef4444 10px, #fff 10px, #fff 20px)',
-          zIndex: 42
-        }} />
+      {/* Boundary Posts */}
+      {[-25, 'calc(100% + 10px)'].map((pos, idx) => (
+        <div key={idx} className="absolute bottom-[-100px] w-4 h-[180px] rounded-full z-50 shadow-2xl"
+             style={{ left: pos, background: 'linear-gradient(to right, #1e293b, #0f172a, #1e293b)', borderTop: `10px solid ${accentColor}` }} />
       ))}
+
+      {/* Tension Cables */}
+      <div className="absolute top-0 -left-10 w-10 h-[2px] bg-white/20 -rotate-[20deg] origin-right" />
+      <div className="absolute top-0 -right-10 w-10 h-[2px] bg-white/20 rotate-[20deg] origin-left" />
     </div>
   );
 });
 
-/** --- MAIN COURT COMPONENT --- */
+/** --- MAIN IMPROVED COURT --- */
 const Court = ({ 
-  courtWidth, 
-  courtHeight, 
+  courtWidth = 800, 
+  courtHeight = 500, 
   netTop, 
-  courtType, 
+  courtType = 'indoor', 
   score = { p1: 0, ai: 0 }, 
   gameStatus = 'playing',
   lastHitTime = 0,
   children 
 }) => {
-  const centerHeight = courtHeight / 2;
-  const ATTACK_LINE_OFFSET = courtHeight / 6; 
   const currentStyle = COURT_STYLES[courtType] || COURT_STYLES.indoor;
-  const calculatedNetTop = netTop !== undefined ? netTop : centerHeight;
-
-  // Optimized styles with useMemo
-  const courtContainerStyle = useMemo(() => ({
-    position: 'relative',
-    width: courtWidth,
-    height: courtHeight,
-    background: currentStyle.background,
-    backgroundImage: `${currentStyle.texture ? currentStyle.texture + ', ' : ''}${currentStyle.background}`,
-    backgroundSize: 'cover',
-    border: `12px solid #1e293b`,
-    boxShadow: `
-      0 40px 100px -20px rgba(0,0,0,0.8), 
-      inset 0 0 120px ${currentStyle.shadowColor}
-    `,
-    borderRadius: '16px',
-    transform: 'perspective(1500px) rotateX(15deg)',
-    transformOrigin: 'center center',
-    margin: '0 auto',
-    overflow: 'visible',
-    transition: 'all 0.5s ease-out'
-  }), [courtWidth, courtHeight, currentStyle]);
+  const centerHeight = courtHeight / 2;
+  const attackLineOffset = courtHeight / 6;
 
   return (
-    <div className="min-h-screen bg-slate-950 flex flex-col items-center justify-center p-12 overflow-hidden">
+    <div className="min-h-screen bg-[#020617] flex flex-col items-center justify-center p-8 select-none">
       
-      {/* 1. Scoreboard (New Feature) */}
+      {/* 1. Global Lighting & Ambiance */}
+      <div className="fixed inset-0 bg-gradient-to-t from-blue-900/10 to-transparent pointer-events-none" />
+      
       <Jumbotron score={score} gameStatus={gameStatus} />
 
-      {/* 2. Main Stadium Wrapper */}
-      <div className="relative">
+      {/* 2. The Stadium Arena */}
+      <div className="relative group">
         
-        {/* Environmental Layers */}
+        {/* Background Atmosphere */}
+        <StadiumLights />
         <CrowdArea side="left" lastHitTime={lastHitTime} />
         <CrowdArea side="right" lastHitTime={lastHitTime} />
-        <CameraFlash />
-        
-        {/* The Physical Court */}
-        <div style={courtContainerStyle}>
-          
-          <AmbientEffect type={currentStyle.ambient} />
 
-          {/* Floor Reflections */}
-          {currentStyle.reflection && (
-            <div className="absolute inset-0 pointer-events-none opacity-40 mix-blend-overlay"
-                 style={{ background: 'linear-gradient(135deg, white 0%, transparent 40%, rgba(255,255,255,0.1) 100%)' }} />
+        {/* The Surface Wrapper */}
+        <div 
+          className="relative transition-all duration-700 ease-out"
+          style={{
+            width: courtWidth,
+            height: courtHeight,
+            background: currentStyle.background,
+            backgroundImage: `${currentStyle.texture ? currentStyle.texture + ', ' : ''}${currentStyle.background}`,
+            borderRadius: '12px',
+            border: '10px solid #0f172a',
+            boxShadow: `0 50px 100px -20px rgba(0,0,0,0.9), inset 0 0 80px ${currentStyle.shadowColor}`,
+            transform: 'perspective(1200px) rotateX(15deg)',
+            transformOrigin: 'bottom center',
+            overflow: 'visible'
+          }}
+        >
+          {/* Surface Scuffs (Detailing) */}
+          {currentStyle.scuffs && (
+            <div className="absolute inset-0 opacity-10 pointer-events-none mix-blend-overlay"
+                 style={{ backgroundImage: 'url("https://www.transparenttextures.com/patterns/scratched-metal.png")' }} />
           )}
 
-          {/* Markings: Boundary */}
-          <div className="absolute inset-0 border-[6px] pointer-events-none z-10" 
-               style={{ borderColor: currentStyle.lineColor, opacity: 0.9 }} />
+          {/* Reflections */}
+          {currentStyle.reflection && (
+            <div className="absolute inset-0 bg-gradient-to-tr from-white/10 via-transparent to-white/5 pointer-events-none" />
+          )}
+
+          {/* Lines & Markings */}
+          <div className="absolute inset-2 border-[4px] pointer-events-none opacity-80" style={{ borderColor: currentStyle.lineColor }} />
+          <div className="absolute left-1/2 -translate-x-1/2 w-[6px] h-full opacity-60" style={{ backgroundColor: currentStyle.lineColor }} />
           
-          {/* Markings: Center Line */}
-          <div className="absolute left-1/2 -translate-x-1/2 w-2 h-full z-10"
-               style={{ backgroundColor: currentStyle.lineColor, opacity: 0.8 }} />
+          {/* 3m Lines */}
+          <div className="absolute left-0 w-full h-[2px] opacity-30" style={{ top: centerHeight - attackLineOffset, backgroundColor: currentStyle.lineColor }} />
+          <div className="absolute left-0 w-full h-[2px] opacity-30" style={{ top: centerHeight + attackLineOffset, backgroundColor: currentStyle.lineColor }} />
 
-          {/* Markings: Attack Lines (3-meter lines) */}
-          <div className="absolute left-0 w-full h-[3px] opacity-60 z-10"
-               style={{ top: centerHeight - ATTACK_LINE_OFFSET, backgroundColor: currentStyle.lineColor }} />
-          <div className="absolute left-0 w-full h-[3px] opacity-60 z-10"
-               style={{ top: centerHeight + ATTACK_LINE_OFFSET, backgroundColor: currentStyle.lineColor }} />
-
-          {/* Game Content Layer */}
-          <div className="absolute inset-0 z-30">
+          {/* Player/Ball Content */}
+          <div className="absolute inset-0 z-20">
             {children}
           </div>
 
-          {/* Net Layer */}
-          <NetComponent netTop={calculatedNetTop} accentColor={currentStyle.accentColor} />
+          {/* Net System */}
+          <NetSystem netTop={netTop || centerHeight} accentColor={currentStyle.accentColor} isShaking={lastHitTime > Date.now() - 200} />
 
-          {/* Lighting Overlay */}
-          <div className="absolute inset-0 pointer-events-none z-50 mix-blend-screen opacity-20"
-               style={{ background: 'radial-gradient(circle at 50% 0%, white 0%, transparent 70%)' }} />
         </div>
 
-        {/* Stadium "Ground" Shadows */}
-        <div className="absolute -bottom-10 left-1/2 -translate-x-1/2 w-[110%] h-20 bg-black/40 blur-3xl rounded-[100%] -z-10" />
+        {/* Shadow Projection */}
+        <div className="absolute -bottom-12 left-1/2 -translate-x-1/2 w-[110%] h-24 bg-black/60 blur-[60px] rounded-full -z-10" />
       </div>
 
-      {/* 3. Sideline Info Bar */}
-      <div className="mt-12 flex items-center gap-24">
-         <div className="flex flex-col items-center opacity-40">
-            <div className="w-12 h-1 bg-blue-500 mb-2" />
-            <span className="text-[10px] text-white font-black uppercase tracking-widest">Home Bench</span>
-         </div>
-         <div className="px-6 py-2 border border-slate-800 rounded-full bg-slate-900/50 flex items-center gap-3">
-            <div className="w-2 h-2 rounded-full bg-green-500 animate-pulse" />
-            <span className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">Official FIVB Simulation</span>
-         </div>
-         <div className="flex flex-col items-center opacity-40">
-            <div className="w-12 h-1 bg-rose-500 mb-2" />
-            <span className="text-[10px] text-white font-black uppercase tracking-widest">Visitor Bench</span>
-         </div>
+      {/* 3. Footer Stats / Metadata */}
+      <div className="mt-16 w-full max-w-4xl flex justify-between items-end border-t border-white/5 pt-6 text-[9px] font-black uppercase tracking-[0.4em] text-slate-500">
+        <div className="flex flex-col gap-1">
+          <span className="text-blue-500">System Ready</span>
+          <span>Buffer: 16ms / Latency: 2ms</span>
+        </div>
+        <div className="text-center group-hover:text-white transition-colors cursor-help">
+          <div className="text-xs text-white mb-1">PRO LEAGUE SIMULATOR</div>
+          <span>Ref #0921-X4</span>
+        </div>
+        <div className="text-right">
+          <span>Regional Finals</span>
+          <br />
+          <span className="text-rose-500">Challenger Tier</span>
+        </div>
       </div>
 
+      {/* Global CSS for Animations */}
       <style dangerouslySetInnerHTML={{ __html: `
-        @keyframes bob {
-          from { transform: translateY(0); }
-          to { transform: translateY(-4px); }
+        @keyframes marquee {
+          0% { transform: translateX(0); }
+          100% { transform: translateX(-50%); }
         }
-        .crowd-person { animation: bob 1s infinite alternate ease-in-out; }
+        .animate-marquee {
+          animation: marquee 20s linear infinite;
+        }
+        @keyframes wiggle {
+          0%, 100% { transform: translateY(0); }
+          25% { transform: translateY(-3px); }
+          75% { transform: translateY(3px); }
+        }
+        .animate-wiggle {
+          animation: wiggle 0.1s infinite;
+        }
       `}} />
     </div>
   );
 };
 
 Court.propTypes = {
-  courtWidth: PropTypes.number.isRequired,
-  courtHeight: PropTypes.number.isRequired,
+  courtWidth: PropTypes.number,
+  courtHeight: PropTypes.number,
   netTop: PropTypes.number,
   courtType: PropTypes.oneOf(['indoor', 'gym', 'beach']),
   score: PropTypes.shape({ p1: PropTypes.number, ai: PropTypes.number }),
