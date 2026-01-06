@@ -1,72 +1,59 @@
-// src/components/Player.js
+import React, { useEffect, useCallback } from 'react';
 
-import React, { useState, useEffect } from 'react';
-import styled, { keyframes, css } from 'styled-components';
+const Player = ({ 
+  courtWidth, 
+  onPlayerMoveX, 
+  paddleHeight, 
+  positionX, 
+  positionY, 
+  isFlashing, 
+  onServe,
+  isCpu = false 
+}) => {
+  const [isJumping, setIsJumping] = React.useState(false);
 
-const jumpAnimation = keyframes`
-  0% { transform: translateY(0); }
-  50% { transform: translateY(-50px); } 
-  100% { transform: translateY(0); }
-`;
-
-const PlayerBody = styled.div`
-  width: 30px;
-  height: ${(props) => props.paddleHeight}px;
-  background-color: ${(props) => (props.isFlashing ? '#f0f0f0' : '#d81b60')};
-  border-radius: 5px;
-  position: absolute;
-  left: ${(props) => props.positionX}px; 
-  top: ${(props) => props.positionY}px;
-  
-  transition: background-color 0.05s ease-in-out, transform 0.2s ease-out;
-  
-  ${(props) => props.isJumping && css`
-    animation: ${jumpAnimation} 0.4s ease-out;
-  `}
-`;
-
-const Player = ({ courtWidth, onPlayerMoveX, paddleHeight, positionX, positionY, isFlashing, onServe }) => {
-  const lateralSpeed = 10;
-  const paddleWidth = 30;
-  const [isJumping, setIsJumping] = useState(false);
+  const handleAction = useCallback(() => {
+    if (isJumping) return;
+    setIsJumping(true);
+    if (onServe) onServe();
+    // Reset jump state after the CSS transition duration (500ms)
+    setTimeout(() => setIsJumping(false), 500);
+  }, [isJumping, onServe]);
 
   useEffect(() => {
-    const handleKeyDown = (event) => {
-      // 1. Lateral Movement (Left/Right)
-      if (event.key === 'ArrowLeft') {
-        onPlayerMoveX((prevX) => Math.max(0, prevX - lateralSpeed));
-      } else if (event.key === 'ArrowRight') {
-        onPlayerMoveX((prevX) => Math.min(courtWidth / 2 - paddleWidth, prevX + lateralSpeed));
-      }
-
-      // 2. Jump/Hit (Up/Space)
-      if ((event.key === 'ArrowUp' || event.key === ' ') && !isJumping) {
-        setIsJumping(true);
-        
-        // Call onServe: If the ball is stopped, it launches. 
-        // If the ball is moving, it just triggers the jump animation.
-        onServe(); 
-        
-        // The actual 'hit' physics is handled by Ball.js when the paddle's position (now jumping) 
-        // collides with the moving ball.
-        
-        setTimeout(() => setIsJumping(false), 400); // Reset jump after animation time
+    if (isCpu) return;
+    const handleKeyDown = (e) => {
+      if (e.key === 'ArrowLeft') onPlayerMoveX(x => Math.max(0, x - 20));
+      if (e.key === 'ArrowRight') onPlayerMoveX(x => Math.min(courtWidth / 2 - 45, x + 20));
+      if (e.key === 'ArrowUp' || e.key === ' ') {
+        e.preventDefault();
+        handleAction();
       }
     };
-
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [onPlayerMoveX, isJumping, onServe, lateralSpeed, courtWidth, paddleWidth]);
+  }, [courtWidth, onPlayerMoveX, handleAction, isCpu]);
 
   return (
-    <PlayerBody 
-      positionX={positionX} 
-      positionY={positionY} 
-      paddleHeight={paddleHeight} 
-      isFlashing={isFlashing} 
-      isJumping={isJumping}
-    />
+    <div style={{
+      position: 'absolute',
+      left: 0, top: 0,
+      width: 40, height: paddleHeight,
+      display: 'flex', flexDirection: 'column', alignItems: 'center',
+      transition: 'transform 0.1s linear, margin-top 0.25s ease-out',
+      transform: `translate3d(${positionX}px, ${positionY}px, 0)`,
+      marginTop: isJumping ? -100 : 0,
+      zIndex: 10
+    }}>
+      {/* Head */}
+      <div style={{ width: 22, height: 22, backgroundColor: '#ffdbac', borderRadius: '50%', border: '2px solid #333' }} />
+      {/* Body */}
+      <div style={{ 
+        width: '100%', flex: 1, border: '2px solid #333', borderRadius: '6px 6px 2px 2px',
+        backgroundColor: isFlashing ? '#fff' : (isCpu ? '#2196F3' : '#E91E63') 
+      }} />
+    </div>
   );
 };
 
-export default Player;
+export default  Player;
