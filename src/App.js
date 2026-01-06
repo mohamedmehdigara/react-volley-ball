@@ -1,4 +1,7 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
+import Ball from './components/Ball';
+import Net from './components/Net';
+import Player from './components/Player';
 
 // --- CONSTANTS ---
 const CANVAS_WIDTH = 800;
@@ -165,7 +168,7 @@ const App = () => {
         <div style={{ position: 'absolute', bottom: 0, width: '100%', height: '30px', backgroundColor: '#334155' }} />
         
         {/* Net */}
-        <div style={{ 
+        <Net style={{ 
           position: 'absolute', 
           bottom: '30px', 
           left: '50%', 
@@ -178,7 +181,7 @@ const App = () => {
 
         {/* Players */}
         {[p1.current, cpu.current].map((p, i) => (
-          <div key={i} style={{
+          <Player key={i} style={{
             position: 'absolute',
             left: p.x,
             top: p.y,
@@ -189,11 +192,11 @@ const App = () => {
             transition: 'transform 0.1s'
           }}>
             <div style={{ width: '10px', height: '10px', background: 'white', borderRadius: '50%', margin: '10px auto' }} />
-          </div>
+          </Player>
         ))}
 
         {/* Ball */}
-        <div style={{
+        <Ball style={{
           position: 'absolute',
           left: ball.current.x - BALL_RADIUS,
           top: ball.current.y - BALL_RADIUS,
