@@ -1,4 +1,8 @@
 import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
+import Crowd from "./components/Crowd";
+import Net from './components/Net';
+import Ball from './components/Ball';
+import Player from './components/Player';
 
 /** --- CONSTANTS --- **/
 const COURT_WIDTH = 800;
@@ -43,147 +47,9 @@ const COURT_STYLES = {
 };
 
 /** --- SUB-COMPONENTS (From Court.js) --- **/
-const Atmosphere = ({ color }) => {
-  const particles = useMemo(() => [...Array(20)].map((_, i) => ({
-    id: i,
-    left: `${Math.random() * 100}%`,
-    top: `${Math.random() * 100}%`,
-    duration: 5 + Math.random() * 10,
-    delay: Math.random() * 5,
-    size: 1 + Math.random() * 3
-  })), []);
-
-  return (
-    <div className="absolute inset-0 pointer-events-none overflow-hidden opacity-40">
-      {particles.map(p => (
-        <div key={p.id} className="absolute rounded-full"
-          style={{
-            left: p.left,
-            top: p.top,
-            width: p.size,
-            height: p.size,
-            backgroundColor: color,
-            filter: 'blur(1px)',
-            animation: `float ${p.duration}s infinite linear`,
-            animationDelay: `${p.delay}s`
-          }}
-        />
-      ))}
-    </div>
-  );
-};
-
-const StadiumLights = () => (
-  <div className="absolute -top-32 inset-x-0 flex justify-between px-12 pointer-events-none z-[60]">
-    {[1, 2, 3, 4].map((i) => (
-      <div key={i} className="relative">
-        <div className="w-20 h-10 bg-slate-900 rounded-t-xl border-b-4 border-blue-400/50 shadow-lg" />
-        <div className="absolute top-10 left-1/2 -translate-x-1/2 w-56 h-[700px] bg-gradient-to-b from-blue-400/10 to-transparent blur-[80px] opacity-30 origin-top rotate-[8deg]" />
-        <div className="absolute top-10 left-1/2 -translate-x-1/2 w-56 h-[700px] bg-gradient-to-b from-blue-400/10 to-transparent blur-[80px] opacity-30 origin-top -rotate-[8deg]" />
-      </div>
-    ))}
-  </div>
-);
-
-const CrowdArea = React.memo(({ side, lastHitTime }) => {
-  const [mood, setMood] = useState('idle');
-  useEffect(() => {
-    if (lastHitTime > 0) {
-      setMood('cheering');
-      const timer = setTimeout(() => setMood('idle'), 600);
-      return () => clearTimeout(timer);
-    }
-  }, [lastHitTime]);
-
-  return (
-    <div style={{ position: 'absolute', [side]: '-130px', top: '0%', height: '100%', width: '100px', display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '8px', perspective: '1000px', filter: 'blur(0.5px)' }}>
-      {[...Array(27)].map((_, i) => (
-        <div key={i} className={`transition-all duration-[400ms] ${mood === 'cheering' ? '-translate-y-4 scale-110' : 'translate-y-0'}`}
-          style={{ width: '18px', height: '24px', borderRadius: '40% 40% 6px 6px', backgroundColor: i % 4 === 0 ? '#0f172a' : '#334155', transitionDelay: `${(i % 5) * 40}ms` }} 
-        />
-      ))}
-    </div>
-  );
-});
-
-const Jumbotron = ({ score, gameStatus }) => (
-  <div className="relative group mb-12 transform hover:scale-[1.02] transition-transform duration-500">
-    <div className="absolute -inset-1 bg-gradient-to-r from-blue-500 via-purple-500 to-rose-500 rounded-2xl blur opacity-20" />
-    <div className="relative flex flex-col items-center bg-slate-950/90 backdrop-blur-md px-12 py-6 rounded-xl border border-white/10 shadow-2xl">
-      <div className="flex items-center gap-16">
-        <div className="text-center">
-          <div className="text-[10px] text-blue-400 font-black uppercase tracking-[0.4em] mb-2">Home</div>
-          <div className="text-7xl font-black text-white tabular-nums">{score.p1.toString().padStart(2, '0')}</div>
-        </div>
-        <div className="flex flex-col items-center">
-          <div className="w-14 h-14 rounded-full border-2 border-slate-800 flex items-center justify-center bg-slate-900">
-            <div className={`text-xs font-black italic ${gameStatus === 'PLAYING' ? 'text-rose-500 animate-pulse' : 'text-slate-500'}`}>
-              {gameStatus === 'PLAYING' ? 'LIVE' : 'PAUSE'}
-            </div>
-          </div>
-        </div>
-        <div className="text-center">
-          <div className="text-[10px] text-rose-400 font-black uppercase tracking-[0.4em] mb-2">Visitor</div>
-          <div className="text-7xl font-black text-white tabular-nums">{score.ai.toString().padStart(2, '0')}</div>
-        </div>
-      </div>
-    </div>
-  </div>
-);
-
-const NetSystem = React.memo(({ netX, accentColor, isShaking }) => (
-  <div className={`absolute left-1/2 -translate-x-1/2 w-[6px] z-40 ${isShaking ? 'animate-wiggle' : ''}`}
-    style={{
-      bottom: 0,
-      height: 160,
-      backgroundColor: 'rgba(255, 255, 255, 0.1)',
-      backgroundImage: `repeating-linear-gradient(0deg, transparent, transparent 12px, rgba(255,255,255,0.2) 12px, rgba(255,255,255,0.2) 13px)`,
-      borderLeft: '2px solid #fff',
-      borderRight: '2px solid #fff',
-      boxShadow: '0 0 20px rgba(0,0,0,0.5)',
-    }}>
-      <div className="absolute top-0 left-1/2 -translate-x-1/2 w-4 h-full" style={{ borderTop: `12px solid #fff` }} />
-  </div>
-));
-
-/** --- GAME COMPONENTS --- **/
-const Ball = ({ pos, rotation, spike }) => (
-  <div 
-    className="absolute z-50 rounded-full border-2 border-amber-500 shadow-xl"
-    style={{
-      left: pos.x - BALL_SIZE/2,
-      top: pos.y - BALL_SIZE/2,
-      width: BALL_SIZE,
-      height: BALL_SIZE,
-      backgroundColor: spike ? '#f59e0b' : '#fef3c7',
-      transform: `rotate(${rotation}deg) scale(${spike ? 1.2 : 1})`,
-      boxShadow: spike ? '0 0 30px rgba(245, 158, 11, 0.8)' : 'none'
-    }}
-  />
-);
-
-const Player = ({ pos, isP1, jumping }) => (
-  <div 
-    className="absolute z-40 flex flex-col items-center"
-    style={{
-      left: pos.x - PLAYER_SIZE/2,
-      top: pos.y - PLAYER_SIZE/2,
-      width: PLAYER_SIZE,
-      height: PLAYER_SIZE,
-      transform: `scale(${jumping ? '0.8, 1.2' : '1, 1'})`
-    }}
-  >
-    <div className={`w-full h-full rounded-2xl border-4 border-white shadow-xl ${isP1 ? 'bg-blue-600' : 'bg-rose-600'}`}>
-        <div className="w-full h-1/2 bg-white/10 rounded-t-xl flex items-center justify-center space-x-2">
-            <div className="w-2 h-2 rounded-full bg-white/80" />
-            <div className="w-2 h-2 rounded-full bg-white/80" />
-        </div>
-    </div>
-  </div>
-);
 
 /** --- MAIN APP --- **/
-export default function App() {
+ function App() {
   const [gameState, setGameState] = useState('START');
   const [courtType, setCourtType] = useState('indoor');
   const [score, setScore] = useState({ p1: 0, ai: 0 });
@@ -287,8 +153,7 @@ export default function App() {
         .animate-wiggle { animation: wiggle 0.08s infinite; }
       `}} />
 
-      <Atmosphere color={currentStyle.particles} />
-      <Jumbotron score={score} gameStatus={gameState} />
+     
 
       {/* Theme Switcher */}
       <div className="flex gap-4 mb-8 z-[100]">
@@ -304,9 +169,8 @@ export default function App() {
       </div>
 
       <div className="relative">
-        <StadiumLights />
-        <CrowdArea side="left" lastHitTime={lastHitTime} />
-        <CrowdArea side="right" lastHitTime={lastHitTime} />
+        <Crowd side="left" lastHitTime={lastHitTime} />
+        <Crowd side="right" lastHitTime={lastHitTime} />
 
         <div 
           className="relative transition-transform duration-500 ease-out cursor-none"
@@ -326,7 +190,7 @@ export default function App() {
         >
           {/* Lines */}
           <div className="absolute inset-4 border-[4px] pointer-events-none opacity-40" style={{ borderColor: currentStyle.lineColor }} />
-          <NetSystem netX={NET_X} accentColor={currentStyle.accentColor} isShaking={lastHitTime > Date.now() - 150} />
+          <Net netX={NET_X} accentColor={currentStyle.accentColor} isShaking={lastHitTime > Date.now() - 150} />
 
           {/* Gameplay Elements */}
           <Ball pos={ball} rotation={ball.rotation} spike={ball.spike} />
@@ -364,3 +228,5 @@ export default function App() {
     </div>
   );
 }
+
+export default App;
